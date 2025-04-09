@@ -10,7 +10,10 @@ An Intellij IDEA extension providing powerful tools for working with [Kore](http
 
 <!-- Plugin description -->
 
-**Kore Assistant** is a plugin for IntelliJ IDEA that provides a variety of features to enhance your development experience with Kore.
+An IntelliJ IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON. Features:
+
+- Gutter icons for quick identification of Kore `DataPack` objects and functions.
+- A dedicated "Kore Elements" tool window to easily browse Kore components within your project.
 
 <!-- Plugin description end -->
 
