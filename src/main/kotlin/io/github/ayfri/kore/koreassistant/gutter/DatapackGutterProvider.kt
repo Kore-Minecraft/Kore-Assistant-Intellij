@@ -7,7 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.tree.LeafPsiElement
-import io.github.ayfri.kore.koreassistant.Icons
+import io.github.ayfri.kore.koreassistant.KoreIcons
 import io.github.ayfri.kore.koreassistant.KoreNames
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.analyze
@@ -55,7 +55,7 @@ class DataPackGutterProvider : LineMarkerProviderDescriptor() {
 			if (functionSymbol.callableId?.asSingleFqName() == KoreNames.KORE_DATAPACK_CLASS_ID &&
 			    functionSymbol.name == KoreNames.KORE_DATAPACK_NAME) {
 				// Found the correct function, create the marker
-				val iconBuilder = NavigationGutterIconBuilder.create(Icons.KORE)
+				val iconBuilder = NavigationGutterIconBuilder.create(KoreIcons.KORE)
 					.setAlignment(GutterIconRenderer.Alignment.CENTER)
 					.setTooltipTitle("DataPack Definition")
 					.setTooltipText("Kore dataPack definition")

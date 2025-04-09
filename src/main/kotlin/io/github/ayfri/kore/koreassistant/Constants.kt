@@ -12,7 +12,7 @@ data object KoreNames {
 	val KORE_FUNCTION_NAME = Name.identifier("function")
 }
 
-data object Icons {
+data object KoreIcons {
 	// Use java.classLoader to ensure compatibility across different environments
 	val KORE = IconLoader.getIcon("/images/kore-white.svg", DataPackGutterProvider::class.java.classLoader)
 	val FUNCTION = IconLoader.getIcon("/images/function.svg", DataPackGutterProvider::class.java.classLoader)
