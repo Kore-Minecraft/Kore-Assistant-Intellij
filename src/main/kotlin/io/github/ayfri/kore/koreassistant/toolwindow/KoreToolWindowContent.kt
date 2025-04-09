@@ -8,22 +8,25 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.IndexNotReadyException
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.project.IndexNotReadyException
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.psi.NavigatablePsiElement
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.CollectionListModel
+import com.intellij.ui.GroupHeaderSeparator
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
 import io.github.ayfri.kore.koreassistant.KoreIcons
 import io.github.ayfri.kore.koreassistant.KoreNames
 import io.github.ayfri.kore.koreassistant.actions.RefreshKoreElementsAction
@@ -38,36 +41,39 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import java.awt.BorderLayout
 import java.awt.Component
-import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
-import com.intellij.openapi.util.text.StringUtil
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.ui.JBColor
-import com.intellij.util.ui.JBUI
-import com.intellij.ui.components.panels.HorizontalLayout
-import com.intellij.ui.components.panels.VerticalLayout
-import java.awt.Color
-import java.util.*
-import com.intellij.openapi.wm.ToolWindowContextMenuActionBase
 
 // Define sorting criteria
 private enum class SortBy {
 	NAME, FILE
 }
 
+// Define sorting order
 private enum class SortOrder {
 	ASCENDING, DESCENDING
 }
 
+// Define grouping criteria
+private enum class GroupBy {
+	NONE, FILE
+}
+
+// Define list item types for grouping
+private sealed class ListItem
+private data class KoreElementItem(val element: KoreElement) : ListItem()
+private data class GroupSeparatorItem(val name: String) : ListItem()
+
+
 class KoreToolWindowContent(private val project: Project) : DumbAware {
-	private val listModel = CollectionListModel<KoreElement>()
+	// Use ListItem to accommodate separators
+	private val listModel = CollectionListModel<ListItem>()
 	private val elementList = JBList(listModel)
 	val contentPanel: SimpleToolWindowPanel = SimpleToolWindowPanel(true, true) // Vertical toolbar
 	private var currentSortBy = SortBy.NAME
 	private var currentSortOrder = SortOrder.ASCENDING
+	private var currentGroupBy = GroupBy.NONE // Default grouping
 	private val foundElementsCache = mutableListOf<KoreElement>() // Cache found elements
 
 	companion object {
@@ -82,7 +88,10 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		elementList.addMouseListener(object : MouseAdapter() {
 			override fun mouseClicked(e: MouseEvent) {
 				if (e.clickCount == 2) {
-					elementList.selectedValue?.let { navigateToElement(it.element) }
+					val selected = elementList.selectedValue
+					if (selected is KoreElementItem) {
+						navigateToElement(selected.element.element)
+					}
 				}
 			}
 		})
@@ -93,76 +102,89 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		val actionManager = ActionManager.getInstance()
 		val mainActionGroup = DefaultActionGroup()
 
-		// 1. Refresh Action (stays on main toolbar)
+		// 1. Refresh Action
 		val refreshAction = RefreshKoreElementsAction { refreshElements(true) }
 		mainActionGroup.add(refreshAction)
-		mainActionGroup.addSeparator() // Separator before the gear menu
+		mainActionGroup.addSeparator()
 
-		// 2. Sorting Actions (will go into the gear menu)
-		val sortByNameAction = SortAction("Sort by Name", SortBy.NAME) {
-			setSortCriteria(SortBy.NAME)
-		}
-		val sortByFileAction = SortAction("Sort by File", SortBy.FILE) {
-			setSortCriteria(SortBy.FILE)
-		}
+		// 2. Sorting Actions
+		val sortByNameAction = ToggleSortAction("Sort by Name", SortBy.NAME)
+		val sortByFileAction = ToggleSortAction("Sort by File", SortBy.FILE)
 
-		// 3. Create the group for the gear menu popup
+		// 3. Grouping Actions
+		val groupByNoneAction = GroupAction("No Grouping", GroupBy.NONE)
+		val groupByFileAction = GroupAction("Group by File", GroupBy.FILE)
+
+		// 4. Create the group for the gear menu popup
 		val gearActionGroup = DefaultActionGroup("View Options", true) // true makes it a popup
-		val sortByGroup = DefaultActionGroup("Sort By", true) // Sub-popup for sort criteria
+
+		// Sort By Submenu
+		val sortByGroup = DefaultActionGroup("Sort By", true)
 		sortByGroup.add(sortByNameAction)
 		sortByGroup.add(sortByFileAction)
 		gearActionGroup.add(sortByGroup)
+		gearActionGroup.addSeparator()
 
-		// 4. Create the Gear Action itself which shows the gearActionGroup as a popup
-		// Using GearPlain icon and making it a popup group itself
+		// Group By Submenu
+		val groupByGroup = DefaultActionGroup("Group By", true)
+		groupByGroup.add(groupByNoneAction)
+		groupByGroup.add(groupByFileAction)
+		gearActionGroup.add(groupByGroup)
+
+		// 5. Create the Gear Action
 		val gearMenuAction = object : DefaultActionGroup("View Options", true) {
 			init {
-				templatePresentation.icon = AllIcons.General.GearPlain // Set the gear icon
-				val children = gearActionGroup.getChildren(null)
-				addAll(*children) // Add sorting actions to this popup
+				templatePresentation.icon = AllIcons.General.GearPlain
+				addAll(*gearActionGroup.getChildren(null))
 			}
-			// Ensure icon is always shown even if group is empty (though it won't be)
 			override fun isDumbAware() = true
 			override fun getActionUpdateThread() = ActionUpdateThread.EDT
 			override fun update(e: AnActionEvent) {
 				e.presentation.icon = AllIcons.General.GearPlain
 			}
 		}
-		gearMenuAction.isPopup = true // Explicitly set as popup
+		gearMenuAction.isPopup = true
 
-		// 5. Add the Gear menu action to the main toolbar
+		// 6. Add the Gear menu action to the main toolbar
 		mainActionGroup.add(gearMenuAction)
 
-		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, mainActionGroup, true) // Horizontal toolbar
+		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, mainActionGroup, true)
 		toolbar.targetComponent = contentPanel
 
 		contentPanel.setToolbar(toolbar.component)
 		contentPanel.setContent(scrollPane)
 
-		// Initial load attempt when smart
 		DumbService.getInstance(project).runWhenSmart {
 			refreshElements(true)
 		}
 	}
 
 	private fun setSortCriteria(sortBy: SortBy) {
-		if (currentSortBy != sortBy) {
+		val needsResort = if (currentSortBy != sortBy) {
 			currentSortBy = sortBy
-			currentSortOrder = SortOrder.ASCENDING // Default to ascending when changing criteria
-			refreshElements(false) // Re-sort and update UI only
+			currentSortOrder = SortOrder.ASCENDING // Reset order when changing criteria
+			true
+		} else {
+			// If same criteria, toggle order
+			currentSortOrder = if (currentSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+			true
+		}
+		if (needsResort) {
+			groupAndSortAndDisplayElements() // Update UI
 		}
 	}
 
-	private fun toggleSortOrder() {
-		currentSortOrder = if (currentSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
-		refreshElements(false) // Re-sort and update UI only
+	private fun setGroupCriteria(groupBy: GroupBy) {
+		if (currentGroupBy != groupBy) {
+			currentGroupBy = groupBy
+			groupAndSortAndDisplayElements() // Re-group, re-sort, and update UI
+		}
 	}
 
 	private fun navigateToElement(element: PsiElement) {
 		if (element is NavigatablePsiElement && element.canNavigate()) {
 			ApplicationManager.getApplication().invokeLater {
 				element.navigate(true)
-				// Optionally focus editor
 				val file = element.containingFile?.virtualFile
 				if (file != null) {
 					FileEditorManager.getInstance(project).openFile(file, true)
@@ -173,16 +195,14 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		}
 	}
 
-	// Made public or internal to be called by the action
 	internal fun refreshElements(forceScan: Boolean) {
 		if (forceScan) {
-			listModel.removeAll() // Clear immediately for visual feedback if scanning
+			listModel.removeAll()
 			foundElementsCache.clear()
 			elementList.setPaintBusy(true)
 			elementList.emptyText.text = "Finding Kore elements..."
 
-			// Run the potentially slow finding logic on a background thread
-			object : Task.Backgroundable(project, "Finding Kore Elements", true /* cancellable */), DumbAware {
+			object : Task.Backgroundable(project, "Finding Kore Elements", true), DumbAware {
 				override fun run(indicator: ProgressIndicator) {
 					indicator.isIndeterminate = true
 
@@ -190,16 +210,17 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 						LOGGER.info("Project is indexing. Deferring Kore element search.")
 						updateUIOnEDT {
 							elementList.emptyText.text = "Waiting for indexing to finish..."
-							elementList.setPaintBusy(true) // Keep busy indicator
+							elementList.setPaintBusy(true)
 						}
 						return
 					}
 
 					try {
 						val found = findKoreElements(indicator)
-						foundElementsCache.addAll(found) // Store results in cache
+						foundElementsCache.clear() // Clear before adding new results
+						foundElementsCache.addAll(found)
 						updateUIOnEDT {
-							sortAndDisplayElements() // Sort and update the list model
+							groupAndSortAndDisplayElements() // Group, sort, and update list
 						}
 					} catch (e: ProcessCanceledException) {
 						LOGGER.info("Kore element search canceled.")
@@ -216,30 +237,56 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				}
 			}.queue()
 		} else {
-			// Just re-sort and update the UI using the cached elements
-			sortAndDisplayElements()
+			// Just re-group, re-sort and update the UI using the cached elements
+			groupAndSortAndDisplayElements()
 		}
 	}
 
-	private fun sortAndDisplayElements() {
+	private fun groupAndSortAndDisplayElements() {
 		val sortedElements = sortElements(foundElementsCache)
-		listModel.replaceAll(sortedElements)
-		elementList.emptyText.text = if (sortedElements.isEmpty()) "No Kore elements found." else ""
-		elementList.setPaintBusy(false) // Ensure busy indicator is off
+		val listItems = mutableListOf<ListItem>()
+
+		if (currentGroupBy == GroupBy.FILE) {
+			var currentFileName = ""
+			sortedElements.forEach { element ->
+				if (element.fileName != currentFileName) {
+					currentFileName = element.fileName
+					listItems.add(GroupSeparatorItem(currentFileName))
+				}
+				listItems.add(KoreElementItem(element))
+			}
+		} else { // GroupBy.NONE
+			sortedElements.forEach { listItems.add(KoreElementItem(it)) }
+		}
+
+		listModel.replaceAll(listItems)
+		elementList.emptyText.text = if (listItems.isEmpty()) "No Kore elements found." else ""
+		elementList.setPaintBusy(false)
 	}
 
 	private fun sortElements(elements: List<KoreElement>): List<KoreElement> {
-		val comparator: Comparator<KoreElement> = when (currentSortBy) {
-			SortBy.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
-			SortBy.FILE -> compareBy<KoreElement> { it.fileName }
+		val comparator: Comparator<KoreElement> = when {
+			// If grouping by file, file name is always the primary sort key
+			currentGroupBy == GroupBy.FILE -> compareBy<KoreElement> { it.fileName }
 				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Secondary sort by name
+
+			// Otherwise, sort by the selected criteria
+			currentSortBy == SortBy.NAME -> compareBy<KoreElement> { it.name }
+				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.fileName } // Secondary sort by file
+
+			currentSortBy == SortBy.FILE -> compareBy<KoreElement> { it.fileName }
+				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Secondary sort by name
+
+			else -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Default fallback
 		}
+
 		return if (currentSortOrder == SortOrder.ASCENDING) {
 			elements.sortedWith(comparator)
 		} else {
 			elements.sortedWith(comparator.reversed())
 		}
 	}
+
 
 	private fun updateUIOnEDT(action: () -> Unit) {
 		ApplicationManager.getApplication().invokeLater(action)
@@ -364,22 +411,44 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		}
 	}
 
-	// Action to set sort criteria
-	private inner class SortAction(
+	// Action to toggle sort criteria and order
+	private inner class ToggleSortAction(
 		text: String,
-		private val sortBy: SortBy,
-		private val onSelect: () -> Unit
+		private val sortBy: SortBy
 	) : AnAction(text), DumbAware {
 		override fun actionPerformed(e: AnActionEvent) {
-			onSelect()
+			setSortCriteria(sortBy)
 		}
 
 		override fun update(e: AnActionEvent) {
 			super.update(e)
-			// Optionally visually indicate the current sort method (e.g., checkmark)
-			e.presentation.icon = if (currentSortBy == sortBy) AllIcons.Actions.Checked else null
+			val presentation = e.presentation
+			presentation.icon = if (currentSortBy == sortBy) {
+				if (currentSortOrder == SortOrder.ASCENDING) AllIcons.RunConfigurations.Scroll_up
+				else AllIcons.RunConfigurations.Scroll_down
+			} else {
+				null // No icon if not the active sort criteria
+			}
+			// Indicate active even without icon change for clarity
+			Toggleable.setSelected(e.presentation, currentSortBy == sortBy)
 		}
 
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
+	}
+
+	// Action to set group criteria
+	private inner class GroupAction(
+		text: String,
+		private val groupBy: GroupBy
+	) : AnAction(text), DumbAware, Toggleable {
+		override fun actionPerformed(e: AnActionEvent) {
+			setGroupCriteria(groupBy)
+		}
+
+		override fun update(e: AnActionEvent) {
+			super.update(e)
+			Toggleable.setSelected(e.presentation, currentGroupBy == groupBy)
+		}
 		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 }
@@ -391,18 +460,43 @@ private val KtStringTemplateExpression.literalValue: String?
 		return text?.removeSurrounding("\"\"\"")?.removeSurrounding("\"")
 	}
 
-// Custom Cell Renderer with improved UI
-private class KoreElementCellRenderer : DefaultListCellRenderer() {
+// Custom Cell Renderer to handle Kore Elements and Group Separators
+private class KoreElementCellRenderer : ListCellRenderer<ListItem> {
+	private val elementRenderer = KoreElementPanelRenderer()
+	private val separatorRenderer = GroupSeparatorRenderer()
+
+	override fun getListCellRendererComponent(
+		list: JList<out ListItem>?,
+		value: ListItem?,
+		index: Int,
+		isSelected: Boolean,
+		cellHasFocus: Boolean
+	): Component {
+		return when (value) {
+			is KoreElementItem -> elementRenderer.getListCellRendererComponent(list, value.element, index, isSelected, cellHasFocus)
+			is GroupSeparatorItem -> separatorRenderer.getListCellRendererComponent(list as JList<out GroupSeparatorItem>, value, index, false, false) // Separators not selectable
+			null -> // Should not happen with CollectionListModel, but handle defensively
+				JLabel("").apply {
+					isOpaque = true
+					background = list?.background ?: JBColor.PanelBackground
+					foreground = list?.foreground ?: JBColor.foreground()
+				}
+		}
+	}
+}
+
+// Panel for rendering KoreElement
+private class KoreElementPanelRenderer : DefaultListCellRenderer() {
 	override fun getListCellRendererComponent(
 		list: JList<*>?,
-		value: Any?,
+		value: Any?, // Receives KoreElement
 		index: Int,
 		isSelected: Boolean,
 		cellHasFocus: Boolean
 	): Component {
 		val panel = JPanel(BorderLayout(JBUI.scale(5), 0))
 		panel.accessibleContext.accessibleName = "Kore Element Cell"
-		panel.border = JBUI.Borders.empty(5)
+		panel.border = JBUI.Borders.empty(2, 5) // Reduced vertical padding
 		panel.isOpaque = true
 		panel.background = if (isSelected) list?.selectionBackground else list?.background
 		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
@@ -418,16 +512,40 @@ private class KoreElementCellRenderer : DefaultListCellRenderer() {
 
 			val locationText = "${value.fileName}:${value.lineNumber}"
 			val locationLabel = JLabel(locationText)
-			locationLabel.foreground = if (isSelected) foreground.darker().darker() else JBColor.GRAY
+			// Slightly dimmed foreground for location
+			locationLabel.foreground = if (isSelected) foreground.darker() else JBColor.GRAY
 			locationLabel.horizontalAlignment = RIGHT
 			locationLabel.isOpaque = false
 			panel.add(locationLabel, BorderLayout.EAST)
 
 			panel.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
 		} else {
+			// Fallback for unexpected types
 			panel.add(JLabel(value?.toString() ?: ""), BorderLayout.CENTER)
 		}
 
 		return panel
+	}
+}
+
+// Renderer for GroupSeparatorItem
+private class GroupSeparatorRenderer : ListCellRenderer<GroupSeparatorItem> {
+	private val separator = GroupHeaderSeparator(JBUI.emptyInsets())
+
+	init {
+		separator.border = JBUI.Borders.empty(3, 5) // Adjust padding
+	}
+	override fun getListCellRendererComponent(
+		list: JList<out GroupSeparatorItem>?,
+		value: GroupSeparatorItem?,
+		index: Int,
+		isSelected: Boolean, // Ignored
+		cellHasFocus: Boolean // Ignored
+	): Component {
+		separator.caption = value?.name ?: ""
+		separator.background = list?.background ?: JBColor.PanelBackground // Match list background
+		separator.foreground = list?.foreground ?: JBColor.foreground() // Match list foreground
+		separator.setCaptionCentered(false)
+		return separator
 	}
 }
