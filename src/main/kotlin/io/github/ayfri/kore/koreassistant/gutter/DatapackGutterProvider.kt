@@ -57,7 +57,7 @@ class DataPackGutterProvider : LineMarkerProviderDescriptor() {
 					.setAlignment(GutterIconRenderer.Alignment.CENTER)
 					.setTooltipTitle("DataPack Definition")
 					.setTooltipText("Kore dataPack definition")
-					.setTarget(functionCall.symbol.valueParameters.first().psi)
+					.setTarget(callExpression.valueArguments.firstOrNull()?.getArgumentExpression() ?: element)
 					.createLineMarkerInfo(element)
 				return iconBuilder
 			}
