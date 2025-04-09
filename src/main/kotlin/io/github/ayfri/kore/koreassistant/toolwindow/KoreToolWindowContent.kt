@@ -1,17 +1,20 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.psi.NavigatablePsiElement
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
@@ -21,24 +24,19 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.util.PlatformIcons
 import io.github.ayfri.kore.koreassistant.KoreIcons
 import io.github.ayfri.kore.koreassistant.KoreNames
+import io.github.ayfri.kore.koreassistant.actions.RefreshKoreElementsAction
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.calls.singleFunctionCallOrNull
-import org.jetbrains.kotlin.analysis.api.calls.symbol
-import org.jetbrains.kotlin.analysis.api.resolution.singleFunctionCallOrNull
+import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.analysis.api.symbols.name
 import org.jetbrains.kotlin.idea.stubindex.KotlinFunctionShortNameIndex
 import org.jetbrains.kotlin.psi.KtCallExpression
-import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
-import java.awt.BorderLayout
 import java.awt.Component
-import java.awt.FlowLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
@@ -46,7 +44,7 @@ import javax.swing.*
 class KoreToolWindowContent(private val project: Project) : DumbAware {
 	private val listModel = CollectionListModel<KoreElement>()
 	private val elementList = JBList(listModel)
-	val contentPanel: JPanel = JPanel(BorderLayout())
+	val contentPanel: SimpleToolWindowPanel = SimpleToolWindowPanel(true, true) // Vertical toolbar
 
 	companion object {
 		private val LOGGER = Logger.getInstance(KoreToolWindowContent::class.java)
@@ -67,13 +65,20 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 
 		val scrollPane = JBScrollPane(elementList)
 
-		val topPanel = JPanel(FlowLayout(FlowLayout.LEFT))
-		val refreshButton = JButton("Refresh", PlatformIcons.SYNCHRONIZE_ICON)
-		refreshButton.addActionListener { refreshElements() }
-		topPanel.add(refreshButton)
+		// Create Refresh Action and Toolbar
+		val actionManager = ActionManager.getInstance()
+		val actionGroup = DefaultActionGroup()
+		// Register or get the refresh action (assuming it exists or you create it)
+		// Let's assume a simple AnAction for now, you might need to adapt this
+		val refreshAction = RefreshKoreElementsAction { refreshElements() } // Pass the refresh function
 
-		contentPanel.add(topPanel, BorderLayout.NORTH)
-		contentPanel.add(scrollPane, BorderLayout.CENTER)
+		actionGroup.add(refreshAction)
+
+		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, actionGroup, true) // Horizontal toolbar
+		toolbar.setTargetComponent(contentPanel) // Important for context
+
+		contentPanel.setToolbar(toolbar.component)
+		contentPanel.setContent(scrollPane)
 
 		// Initial load attempt when smart
 		DumbService.getInstance(project).runWhenSmart {
@@ -96,7 +101,8 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		}
 	}
 
-	private fun refreshElements() {
+	// Made public or internal to be called by the action
+	internal fun refreshElements() {
 		listModel.removeAll()
 		elementList.setPaintBusy(true)
 		elementList.emptyText.text = "Finding Kore elements..."
@@ -106,33 +112,25 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 			override fun run(indicator: ProgressIndicator) {
 				indicator.isIndeterminate = true
 
-				// Check for dumb mode at the start of the background task
 				if (DumbService.getInstance(project).isDumb) {
 					LOGGER.info("Project is indexing. Deferring Kore element search.")
 					updateUIOnEDT {
 						elementList.emptyText.text = "Waiting for indexing to finish..."
 						elementList.setPaintBusy(true) // Keep busy indicator
 					}
-					// No results to process, the user can refresh manually later
-					return // Exit the task run method
+					return
 				}
 
-				// Proceed with finding elements now that we are in smart mode and on a background thread
 				try {
 					val foundElements = findKoreElements(indicator)
 					updateUIOnEDT {
 						listModel.replaceAll(foundElements.sortedBy { it.name })
-						if (foundElements.isEmpty()) {
-							elementList.emptyText.text = "No Kore elements found in project."
-						} else {
-							elementList.emptyText.text = "" // Clear empty text
-						}
+						elementList.emptyText.text = if (foundElements.isEmpty()) "No Kore elements found in project." else ""
 					}
 				} catch (e: ProcessCanceledException) {
 					LOGGER.info("Kore element search canceled.")
 					updateUIOnEDT { elementList.emptyText.text = "Search canceled." }
 				} catch (e: IndexNotReadyException) {
-					// Should be rare now due to the DumbService check, but handle defensively
 					LOGGER.warn("Index became unavailable during search.", e)
 					updateUIOnEDT { elementList.emptyText.text = "Indexing changed. Please refresh." }
 				} catch (e: Exception) {
@@ -142,47 +140,46 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 					updateUIOnEDT { elementList.setPaintBusy(false) }
 				}
 			}
-		}.queue() // Queue the task for execution
+		}.queue()
 	}
 
-	// Helper to update UI components safely on the EDT
 	private fun updateUIOnEDT(action: () -> Unit) {
 		ApplicationManager.getApplication().invokeLater(action)
 	}
 
-	// This function now runs on a background thread but needs ReadAction for PSI access
 	private fun findKoreElements(indicator: ProgressIndicator): List<KoreElement> {
 		val elements = mutableListOf<KoreElement>()
-		val projectScope = GlobalSearchScope.projectScope(project)
+		// Use a very broad scope to find declarations in dependencies
+		val declarationSearchScope = GlobalSearchScope.allScope(project) // Alternative broad scope
 
-		ReadAction.run<Throwable> { // ReadAction is required for index/PSI access
-			indicator.checkCanceled() // Check before starting potentially long operations
+		ReadAction.run<Throwable> {
+			indicator.checkCanceled()
 
-			// 1. Find declarations of the target Kore functions
-			val koreDeclarations = findKoreFunctionDeclarations(projectScope, indicator)
+			val koreDeclarations = findKoreFunctionDeclarations(declarationSearchScope, indicator)
 			if (koreDeclarations.isEmpty()) {
-				LOGGER.warn("Could not find Kore function declarations. Ensure Kore library is a project dependency.")
-				return@run // Exit ReadAction if no declarations found
+				LOGGER.warn("Could not find Kore function declarations via index search (using allScope). Ensure Kore library is a project dependency and indexed.")
+				return@run
 			}
 
-			// 2. Search for references (usages) of these declarations
-			searchForReferences(koreDeclarations, projectScope, indicator, elements)
+			// Search for references only within the project files
+			val usageSearchScope = GlobalSearchScope.projectScope(project)
+			searchForReferences(koreDeclarations, usageSearchScope, indicator, elements)
 
 		} // End ReadAction
 
-		LOGGER.info("Finished Kore element search. Found ${elements.size} elements.")
 		return elements
 	}
 
-	// Helper: Finds the KtNamedFunction declarations for Kore functions
 	private fun findKoreFunctionDeclarations(
 		scope: GlobalSearchScope,
 		indicator: ProgressIndicator
 	): List<KtNamedFunction> {
-		val dataPackDeclarations = findDeclarationsByName(KoreNames.KORE_DATAPACK_NAME.asString(), KoreNames.KORE_DATAPACK_CLASS_ID.parent(), scope, indicator)
-		val functionDeclarations = findDeclarationsByName(KoreNames.KORE_FUNCTION_NAME.asString(), KoreNames.KORE_FUNCTION_CLASS_ID.parent(), scope, indicator)
+		val dataPackPackageFqn = KoreNames.KORE_DATAPACK_CLASS_ID.parent()
+		val dataPackDeclarations = findDeclarationsByName(KoreNames.KORE_DATAPACK_NAME.asString(), dataPackPackageFqn, scope, indicator)
 
-		LOGGER.info("Found ${dataPackDeclarations.size} dataPack declarations and ${functionDeclarations.size} function declarations.")
+		val functionPackageFqn = KoreNames.KORE_FUNCTION_CLASS_ID.parent()
+		val functionDeclarations = findDeclarationsByName(KoreNames.KORE_FUNCTION_NAME.asString(), functionPackageFqn, scope, indicator)
+
 		return dataPackDeclarations + functionDeclarations
 	}
 
@@ -194,22 +191,21 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 	): List<KtNamedFunction> {
 		indicator.checkCanceled()
 		return KotlinFunctionShortNameIndex.get(name, project, scope)
-			.filter { it.containingKtFile.packageFqName == packageName }
+			.filter { declaration ->
+				declaration.containingKtFile.packageFqName == packageName
+			}
 	}
 
-
-	// Helper: Searches for references and analyzes them
 	@OptIn(KaIdeApi::class)
 	private fun searchForReferences(
 		declarationsToSearch: List<KtNamedFunction>,
-		searchScope: GlobalSearchScope,
+		searchScope: GlobalSearchScope, // For usages
 		indicator: ProgressIndicator,
 		results: MutableList<KoreElement>
 	) {
 		for (declaration in declarationsToSearch) {
 			indicator.checkCanceled()
 			val query = ReferencesSearch.search(declaration, searchScope)
-			// Process references, checking for cancellation frequently
 			query.forEach { psiReference ->
 				indicator.checkCanceled()
 				processReference(psiReference, results)
@@ -218,20 +214,19 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		}
 	}
 
-	// Helper: Processes a single PSI reference to see if it's a Kore element call
 	@OptIn(KaIdeApi::class)
 	private fun processReference(psiReference: PsiReference, results: MutableList<KoreElement>) {
 		val element = psiReference.element
 		val callExpression = PsiTreeUtil.getParentOfType(element, KtCallExpression::class.java, false)?.takeIf {
 			val callee = it.calleeExpression
 			callee != null && PsiTreeUtil.isAncestor(callee, element, false)
-		} ?: return // Not a direct call or element not in callee
+		} ?: return
 
 		try {
 			analyze(callExpression) {
-				val functionCall = callExpression.resolveToCall()?.singleFunctionCallOrNull() ?: return@analyze
+				val functionCall = callExpression.resolveToCall()?.successfulFunctionCallOrNull() ?: return@analyze
 				val functionSymbol = functionCall.symbol
-				val callableId = functionSymbol.callableId?.asSingleFqName() ?: return@analyze
+				val callableId = functionSymbol.callableId?.asSingleFqName()
 				val functionName = functionSymbol.name
 
 				when {
@@ -239,43 +234,44 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 					callableId == KoreNames.KORE_DATAPACK_CLASS_ID && functionName == KoreNames.KORE_DATAPACK_NAME -> {
 						val containingFile = callExpression.containingKtFile
 						val fileName = containingFile.name.substringBeforeLast('.')
-						results.add(KoreDataPackElement("datapack:$fileName", containingFile)) // Navigate to file
-						LOGGER.debug("Found Kore Datapack in: $fileName")
+						// Avoid duplicates
+						if (results.none { it is KoreDataPackElement && it.element == containingFile }) {
+							results.add(KoreDataPackElement("datapack:$fileName", containingFile))
+						}
 					}
 					// Check for Kore Function
 					callableId == KoreNames.KORE_FUNCTION_CLASS_ID && functionName == KoreNames.KORE_FUNCTION_NAME -> {
 						val nameArgument = callExpression.valueArguments.firstOrNull()?.getArgumentExpression()
 						var name = "unknown_function"
 						if (nameArgument is KtStringTemplateExpression) {
-							name = nameArgument.literalValue ?: nameArgument.text.take(50).trim('"') // Limit length
+							name = nameArgument.literalValue ?: nameArgument.text.take(50).trim('"')
 						} else if (nameArgument != null) {
-							// Try evaluating constant; fallback to text representation
-							val constValue = nameArgument.evaluate()?.render()
-							name = constValue ?: nameArgument.text.take(50) // Limit length
+							val constValue = nameArgument.evaluate()?.render()?.trim('"')
+							name = constValue?.takeIf { it != "null" } ?: nameArgument.text.take(50)
 						}
-						// Navigate to the call expression itself, or the name argument if found
-						val navigationElement = nameArgument ?: callExpression
-						results.add(KoreFunctionElement(name, navigationElement))
-						LOGGER.debug("Found Kore Function: $name")
+						val navigationElement = callExpression
+						// Avoid duplicates
+						if (results.none { it is KoreFunctionElement && it.name == name && it.element == navigationElement }) {
+							results.add(KoreFunctionElement(name, navigationElement))
+						}
 					}
 				}
 			}
 		} catch (e: Exception) {
-			// Log analysis errors but continue searching other references
-			if (e is ProcessCanceledException) throw e // Re-throw cancellation
+			if (e is ProcessCanceledException) throw e
 			LOGGER.warn("Error analyzing potential Kore call: ${callExpression.text}", e)
 		}
 	}
+}
 
-} // End KoreToolWindowContent class
-
-
-// Helper extension to get literal value safely from a simple string template (handles "" and """), returns null for templates with variables
+// Helper extension to get literal value safely from a simple string template
 private val KtStringTemplateExpression.literalValue: String?
-	get() = if (entries.isEmpty()) this.text?.removeSurrounding("\"\"\"")?.removeSurrounding("\"") else null
+	get() {
+		if (entries.isNotEmpty()) return null
+		return text?.removeSurrounding("\"\"\"")?.removeSurrounding("\"")
+	}
 
-
-// Custom Cell Renderer (assuming KoreElement definition is in another file now)
+// Custom Cell Renderer
 private class KoreElementCellRenderer : DefaultListCellRenderer() {
 	override fun getListCellRendererComponent(
 		list: JList<*>?,
@@ -288,8 +284,8 @@ private class KoreElementCellRenderer : DefaultListCellRenderer() {
 		if (value is KoreElement && component is JLabel) {
 			component.text = value.name
 			component.icon = when (value) {
-				is KoreDataPackElement -> KoreIcons.KORE // Use KoreIcons
-				is KoreFunctionElement -> KoreIcons.FUNCTION // Use KoreIcons
+				is KoreDataPackElement -> KoreIcons.KORE
+				is KoreFunctionElement -> KoreIcons.FUNCTION
 			}
 			component.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
 		}
