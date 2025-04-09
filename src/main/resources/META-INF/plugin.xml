@@ -28,6 +28,9 @@
         <codeInsight.lineMarkerProvider
                 language="kotlin"
                 implementationClass="io.github.ayfri.kore.koreassistant.gutter.DataPackGutterProvider"/>
+        <codeInsight.lineMarkerProvider
+                language="kotlin"
+                implementationClass="io.github.ayfri.kore.koreassistant.gutter.FunctionGutterProvider"/>
     </extensions>
 
     <extensions defaultExtensionNs="org.jetbrains.kotlin">

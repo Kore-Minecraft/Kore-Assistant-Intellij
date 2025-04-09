@@ -16,14 +16,14 @@ import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 
-class DataPackGutterProvider : LineMarkerProviderDescriptor() {
-	override fun getName() = "DatapackGutterProvider"
+class FunctionGutterProvider : LineMarkerProviderDescriptor() {
+	override fun getName() = "FunctionGutterProvider"
 
 	@OptIn(KaIdeApi::class)
 	override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
 		// We look for the function name identifier itself
 		if (element !is LeafPsiElement || element.elementType != KtTokens.IDENTIFIER) {
-			 return null
+			return null
 		}
 
 		// Check parents: Identifier -> KtNameReferenceExpression -> KtCallExpression
@@ -35,8 +35,8 @@ class DataPackGutterProvider : LineMarkerProviderDescriptor() {
 			return null
 		}
 
-		// Quick check: function name must be 'dataPack'
-		if (nameReferenceExpr.getReferencedNameAsName() != KoreNames.KORE_DATAPACK_NAME) {
+		// Quick check: function name must be 'function'
+		if (nameReferenceExpr.getReferencedNameAsName() != KoreNames.KORE_FUNCTION_NAME) {
 			return null
 		}
 
@@ -47,17 +47,18 @@ class DataPackGutterProvider : LineMarkerProviderDescriptor() {
 			// Ensure it's the correct symbol type
 			val functionSymbol = functionCall.symbol
 
-			LOGGER.info("Resolved function symbol: ${functionSymbol.callableId} ${functionSymbol.callableId?.asSingleFqName()} ${functionSymbol.callableId?.asFqNameForDebugInfo()} ${functionSymbol.name}")
+			LOGGER.info("Resolved function symbol for 'function': ${functionSymbol.callableId}")
 
 			// Check if the resolved function matches our target FQN (ClassId and Name)
-			if (functionSymbol.callableId?.asSingleFqName() == KoreNames.KORE_DATAPACK_CLASS_ID &&
-			    functionSymbol.name == KoreNames.KORE_DATAPACK_NAME) {
+			if (functionSymbol.callableId?.asSingleFqName() == KoreNames.KORE_FUNCTION_CLASS_ID &&
+				functionSymbol.name == KoreNames.KORE_FUNCTION_NAME) {
 				// Found the correct function, create the marker
-				val iconBuilder = NavigationGutterIconBuilder.create(Icons.KORE)
+				val iconBuilder = NavigationGutterIconBuilder.create(Icons.FUNCTION)
 					.setAlignment(GutterIconRenderer.Alignment.CENTER)
-					.setTooltipTitle("DataPack Definition")
-					.setTooltipText("Kore dataPack definition")
-					.setTarget(functionCall.symbol.valueParameters.first().psi)
+					.setTooltipTitle("Function Definition")
+					.setTooltipText("Kore function definition")
+					// Target the first argument (the function name string literal) or fallback to the identifier element
+					.setTarget(callExpression.valueArguments.firstOrNull()?.getArgumentExpression() ?: element)
 					.createLineMarkerInfo(element)
 				return iconBuilder
 			}
@@ -73,6 +74,7 @@ class DataPackGutterProvider : LineMarkerProviderDescriptor() {
 	) {}
 
 	companion object {
-		private val LOGGER = Logger.getInstance(DataPackGutterProvider::class.java)
+		// Consider using a dedicated logger for clarity if needed
+		private val LOGGER = Logger.getInstance(FunctionGutterProvider::class.java)
 	}
 }
