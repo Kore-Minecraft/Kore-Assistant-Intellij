@@ -1,6 +1,7 @@
-package io.github.ayfri.kore.koreassistant.gutter
+package io.github.ayfri.kore.koreassistant
 
 import com.intellij.openapi.util.IconLoader
+import io.github.ayfri.kore.koreassistant.gutter.DataPackGutterProvider
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 
