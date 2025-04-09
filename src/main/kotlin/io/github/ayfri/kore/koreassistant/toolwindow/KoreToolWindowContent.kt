@@ -1,8 +1,7 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
@@ -51,11 +50,25 @@ import com.intellij.util.ui.JBUI
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.ui.components.panels.VerticalLayout
 import java.awt.Color
+import java.util.*
+import com.intellij.openapi.wm.ToolWindowContextMenuActionBase
+
+// Define sorting criteria
+private enum class SortBy {
+	NAME, FILE
+}
+
+private enum class SortOrder {
+	ASCENDING, DESCENDING
+}
 
 class KoreToolWindowContent(private val project: Project) : DumbAware {
 	private val listModel = CollectionListModel<KoreElement>()
 	private val elementList = JBList(listModel)
 	val contentPanel: SimpleToolWindowPanel = SimpleToolWindowPanel(true, true) // Vertical toolbar
+	private var currentSortBy = SortBy.NAME
+	private var currentSortOrder = SortOrder.ASCENDING
+	private val foundElementsCache = mutableListOf<KoreElement>() // Cache found elements
 
 	companion object {
 		private val LOGGER = Logger.getInstance(KoreToolWindowContent::class.java)
@@ -76,25 +89,73 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 
 		val scrollPane = JBScrollPane(elementList)
 
-		// Create Refresh Action and Toolbar
+		// Create Toolbar Actions
 		val actionManager = ActionManager.getInstance()
-		val actionGroup = DefaultActionGroup()
-		// Register or get the refresh action (assuming it exists or you create it)
-		// Let's assume a simple AnAction for now, you might need to adapt this
-		val refreshAction = RefreshKoreElementsAction { refreshElements() } // Pass the refresh function
+		val mainActionGroup = DefaultActionGroup()
 
-		actionGroup.add(refreshAction)
+		// 1. Refresh Action (stays on main toolbar)
+		val refreshAction = RefreshKoreElementsAction { refreshElements(true) }
+		mainActionGroup.add(refreshAction)
+		mainActionGroup.addSeparator() // Separator before the gear menu
 
-		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, actionGroup, true) // Horizontal toolbar
-		toolbar.setTargetComponent(contentPanel) // Important for context
+		// 2. Sorting Actions (will go into the gear menu)
+		val sortByNameAction = SortAction("Sort by Name", SortBy.NAME) {
+			setSortCriteria(SortBy.NAME)
+		}
+		val sortByFileAction = SortAction("Sort by File", SortBy.FILE) {
+			setSortCriteria(SortBy.FILE)
+		}
+
+		// 3. Create the group for the gear menu popup
+		val gearActionGroup = DefaultActionGroup("View Options", true) // true makes it a popup
+		val sortByGroup = DefaultActionGroup("Sort By", true) // Sub-popup for sort criteria
+		sortByGroup.add(sortByNameAction)
+		sortByGroup.add(sortByFileAction)
+		gearActionGroup.add(sortByGroup)
+
+		// 4. Create the Gear Action itself which shows the gearActionGroup as a popup
+		// Using GearPlain icon and making it a popup group itself
+		val gearMenuAction = object : DefaultActionGroup("View Options", true) {
+			init {
+				templatePresentation.icon = AllIcons.General.GearPlain // Set the gear icon
+				val children = gearActionGroup.getChildren(null)
+				addAll(*children) // Add sorting actions to this popup
+			}
+			// Ensure icon is always shown even if group is empty (though it won't be)
+			override fun isDumbAware() = true
+			override fun getActionUpdateThread() = ActionUpdateThread.EDT
+			override fun update(e: AnActionEvent) {
+				e.presentation.icon = AllIcons.General.GearPlain
+			}
+		}
+		gearMenuAction.isPopup = true // Explicitly set as popup
+
+		// 5. Add the Gear menu action to the main toolbar
+		mainActionGroup.add(gearMenuAction)
+
+		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, mainActionGroup, true) // Horizontal toolbar
+		toolbar.targetComponent = contentPanel
 
 		contentPanel.setToolbar(toolbar.component)
 		contentPanel.setContent(scrollPane)
 
 		// Initial load attempt when smart
 		DumbService.getInstance(project).runWhenSmart {
-			refreshElements()
+			refreshElements(true)
 		}
+	}
+
+	private fun setSortCriteria(sortBy: SortBy) {
+		if (currentSortBy != sortBy) {
+			currentSortBy = sortBy
+			currentSortOrder = SortOrder.ASCENDING // Default to ascending when changing criteria
+			refreshElements(false) // Re-sort and update UI only
+		}
+	}
+
+	private fun toggleSortOrder() {
+		currentSortOrder = if (currentSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
+		refreshElements(false) // Re-sort and update UI only
 	}
 
 	private fun navigateToElement(element: PsiElement) {
@@ -113,45 +174,71 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 	}
 
 	// Made public or internal to be called by the action
-	internal fun refreshElements() {
-		listModel.removeAll()
-		elementList.setPaintBusy(true)
-		elementList.emptyText.text = "Finding Kore elements..."
+	internal fun refreshElements(forceScan: Boolean) {
+		if (forceScan) {
+			listModel.removeAll() // Clear immediately for visual feedback if scanning
+			foundElementsCache.clear()
+			elementList.setPaintBusy(true)
+			elementList.emptyText.text = "Finding Kore elements..."
 
-		// Run the potentially slow finding logic on a background thread
-		object : Task.Backgroundable(project, "Finding Kore Elements", true /* cancellable */), DumbAware {
-			override fun run(indicator: ProgressIndicator) {
-				indicator.isIndeterminate = true
+			// Run the potentially slow finding logic on a background thread
+			object : Task.Backgroundable(project, "Finding Kore Elements", true /* cancellable */), DumbAware {
+				override fun run(indicator: ProgressIndicator) {
+					indicator.isIndeterminate = true
 
-				if (DumbService.getInstance(project).isDumb) {
-					LOGGER.info("Project is indexing. Deferring Kore element search.")
-					updateUIOnEDT {
-						elementList.emptyText.text = "Waiting for indexing to finish..."
-						elementList.setPaintBusy(true) // Keep busy indicator
+					if (DumbService.getInstance(project).isDumb) {
+						LOGGER.info("Project is indexing. Deferring Kore element search.")
+						updateUIOnEDT {
+							elementList.emptyText.text = "Waiting for indexing to finish..."
+							elementList.setPaintBusy(true) // Keep busy indicator
+						}
+						return
 					}
-					return
-				}
 
-				try {
-					val foundElements = findKoreElements(indicator)
-					updateUIOnEDT {
-						listModel.replaceAll(foundElements.sortedBy { it.name })
-						elementList.emptyText.text = if (foundElements.isEmpty()) "No Kore elements found in project." else ""
+					try {
+						val found = findKoreElements(indicator)
+						foundElementsCache.addAll(found) // Store results in cache
+						updateUIOnEDT {
+							sortAndDisplayElements() // Sort and update the list model
+						}
+					} catch (e: ProcessCanceledException) {
+						LOGGER.info("Kore element search canceled.")
+						updateUIOnEDT { elementList.emptyText.text = "Search canceled." }
+					} catch (e: IndexNotReadyException) {
+						LOGGER.warn("Index became unavailable during search.", e)
+						updateUIOnEDT { elementList.emptyText.text = "Indexing changed. Please refresh." }
+					} catch (e: Exception) {
+						LOGGER.error("Error finding Kore elements", e)
+						updateUIOnEDT { elementList.emptyText.text = "Error finding elements. See logs." }
+					} finally {
+						updateUIOnEDT { elementList.setPaintBusy(false) }
 					}
-				} catch (e: ProcessCanceledException) {
-					LOGGER.info("Kore element search canceled.")
-					updateUIOnEDT { elementList.emptyText.text = "Search canceled." }
-				} catch (e: IndexNotReadyException) {
-					LOGGER.warn("Index became unavailable during search.", e)
-					updateUIOnEDT { elementList.emptyText.text = "Indexing changed. Please refresh." }
-				} catch (e: Exception) {
-					LOGGER.error("Error finding Kore elements", e)
-					updateUIOnEDT { elementList.emptyText.text = "Error finding elements. See logs." }
-				} finally {
-					updateUIOnEDT { elementList.setPaintBusy(false) }
 				}
-			}
-		}.queue()
+			}.queue()
+		} else {
+			// Just re-sort and update the UI using the cached elements
+			sortAndDisplayElements()
+		}
+	}
+
+	private fun sortAndDisplayElements() {
+		val sortedElements = sortElements(foundElementsCache)
+		listModel.replaceAll(sortedElements)
+		elementList.emptyText.text = if (sortedElements.isEmpty()) "No Kore elements found." else ""
+		elementList.setPaintBusy(false) // Ensure busy indicator is off
+	}
+
+	private fun sortElements(elements: List<KoreElement>): List<KoreElement> {
+		val comparator: Comparator<KoreElement> = when (currentSortBy) {
+			SortBy.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+			SortBy.FILE -> compareBy<KoreElement> { it.fileName }
+				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Secondary sort by name
+		}
+		return if (currentSortOrder == SortOrder.ASCENDING) {
+			elements.sortedWith(comparator)
+		} else {
+			elements.sortedWith(comparator.reversed())
+		}
 	}
 
 	private fun updateUIOnEDT(action: () -> Unit) {
@@ -160,8 +247,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 
 	private fun findKoreElements(indicator: ProgressIndicator): List<KoreElement> {
 		val elements = mutableListOf<KoreElement>()
-		// Use a very broad scope to find declarations in dependencies
-		val declarationSearchScope = GlobalSearchScope.allScope(project) // Alternative broad scope
+		val declarationSearchScope = GlobalSearchScope.allScope(project)
 
 		ReadAction.run<Throwable> {
 			indicator.checkCanceled()
@@ -172,7 +258,6 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				return@run
 			}
 
-			// Search for references only within the project files
 			val usageSearchScope = GlobalSearchScope.projectScope(project)
 			searchForReferences(koreDeclarations, usageSearchScope, indicator, elements)
 
@@ -257,20 +342,16 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				}
 
 				when {
-					// Check for Kore Datapack
 					callableId == KoreNames.KORE_DATAPACK_CLASS_ID && functionName == KoreNames.KORE_DATAPACK_NAME -> {
 						val datapackName = extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
-						val navigationElement = callExpression // Navigate to the call site
-						// Avoid duplicates
+						val navigationElement = callExpression
 						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == navigationElement }) {
 							results.add(KoreDataPackElement(datapackName, navigationElement, fileName, lineNumber))
 						}
 					}
-					// Check for Kore Function
 					callableId == KoreNames.KORE_FUNCTION_CLASS_ID && functionName == KoreNames.KORE_FUNCTION_NAME -> {
 						val functionElementName = extractNameArgument("unknown_function")
 						val navigationElement = callExpression
-						// Avoid duplicates
 						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == navigationElement }) {
 							results.add(KoreFunctionElement(functionElementName, navigationElement, fileName, lineNumber))
 						}
@@ -281,6 +362,25 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 			if (e is ProcessCanceledException) throw e
 			LOGGER.warn("Error analyzing potential Kore call: ${callExpression.text}", e)
 		}
+	}
+
+	// Action to set sort criteria
+	private inner class SortAction(
+		text: String,
+		private val sortBy: SortBy,
+		private val onSelect: () -> Unit
+	) : AnAction(text), DumbAware {
+		override fun actionPerformed(e: AnActionEvent) {
+			onSelect()
+		}
+
+		override fun update(e: AnActionEvent) {
+			super.update(e)
+			// Optionally visually indicate the current sort method (e.g., checkmark)
+			e.presentation.icon = if (currentSortBy == sortBy) AllIcons.Actions.Checked else null
+		}
+
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 }
 
@@ -300,16 +400,14 @@ private class KoreElementCellRenderer : DefaultListCellRenderer() {
 		isSelected: Boolean,
 		cellHasFocus: Boolean
 	): Component {
-		// Use a JPanel for more complex layout
-		val panel = JPanel(BorderLayout(JBUI.scale(5), 0)) // Horizontal gap
+		val panel = JPanel(BorderLayout(JBUI.scale(5), 0))
 		panel.accessibleContext.accessibleName = "Kore Element Cell"
-		panel.border = JBUI.Borders.empty(5) // Padding around the cell
-		panel.isOpaque = true // Important for background color selection
+		panel.border = JBUI.Borders.empty(5)
+		panel.isOpaque = true
 		panel.background = if (isSelected) list?.selectionBackground else list?.background
 		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
 
 		if (value is KoreElement) {
-			// Icon and Name (Left/Center)
 			val nameLabel = JLabel(value.name, when (value) {
 				is KoreDataPackElement -> KoreIcons.KORE
 				is KoreFunctionElement -> KoreIcons.FUNCTION
@@ -318,18 +416,15 @@ private class KoreElementCellRenderer : DefaultListCellRenderer() {
 			nameLabel.isOpaque = false
 			panel.add(nameLabel, BorderLayout.CENTER)
 
-			// File and Line Number (Right)
 			val locationText = "${value.fileName}:${value.lineNumber}"
 			val locationLabel = JLabel(locationText)
-			locationLabel.foreground = if (isSelected) foreground.darker().darker() else JBColor.GRAY // Gray color, slightly darker on selection
+			locationLabel.foreground = if (isSelected) foreground.darker().darker() else JBColor.GRAY
 			locationLabel.horizontalAlignment = RIGHT
 			locationLabel.isOpaque = false
 			panel.add(locationLabel, BorderLayout.EAST)
 
-			// Tooltip
 			panel.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
 		} else {
-			// Fallback for unexpected values
 			panel.add(JLabel(value?.toString() ?: ""), BorderLayout.CENTER)
 		}
 
