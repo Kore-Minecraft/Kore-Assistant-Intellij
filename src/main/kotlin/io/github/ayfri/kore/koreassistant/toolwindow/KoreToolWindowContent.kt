@@ -9,6 +9,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
@@ -36,10 +37,20 @@ import org.jetbrains.kotlin.idea.stubindex.KotlinFunctionShortNameIndex
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
+import java.awt.BorderLayout
 import java.awt.Component
+import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.ui.JBColor
+import com.intellij.util.ui.JBUI
+import com.intellij.ui.components.panels.HorizontalLayout
+import com.intellij.ui.components.panels.VerticalLayout
+import java.awt.Color
 
 class KoreToolWindowContent(private val project: Project) : DumbAware {
 	private val listModel = CollectionListModel<KoreElement>()
@@ -229,30 +240,39 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				val callableId = functionSymbol.callableId?.asSingleFqName()
 				val functionName = functionSymbol.name
 
+				val containingFile = callExpression.containingKtFile
+				val fileName = containingFile.name
+				val document = PsiDocumentManager.getInstance(project).getDocument(containingFile)
+				val lineNumber = document?.getLineNumber(callExpression.textOffset)?.plus(1) ?: -1 // 1-based line number
+
+				fun extractNameArgument(defaultName: String): String {
+					val nameArgument = callExpression.valueArguments.firstOrNull()?.getArgumentExpression()
+					if (nameArgument is KtStringTemplateExpression) {
+						return nameArgument.literalValue ?: nameArgument.text.take(50).trim('"')
+					} else if (nameArgument != null) {
+						val constValue = nameArgument.evaluate()?.render()?.trim('"')
+						return constValue?.takeIf { it != "null" } ?: nameArgument.text.take(50)
+					}
+					return defaultName
+				}
+
 				when {
 					// Check for Kore Datapack
 					callableId == KoreNames.KORE_DATAPACK_CLASS_ID && functionName == KoreNames.KORE_DATAPACK_NAME -> {
-						val containingFile = callExpression.containingKtFile
-						val fileName = containingFile.name.substringBeforeLast('.')
+						val datapackName = extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
+						val navigationElement = callExpression // Navigate to the call site
 						// Avoid duplicates
-						if (results.none { it is KoreDataPackElement && it.element == containingFile }) {
-							results.add(KoreDataPackElement("datapack:$fileName", containingFile))
+						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == navigationElement }) {
+							results.add(KoreDataPackElement(datapackName, navigationElement, fileName, lineNumber))
 						}
 					}
 					// Check for Kore Function
 					callableId == KoreNames.KORE_FUNCTION_CLASS_ID && functionName == KoreNames.KORE_FUNCTION_NAME -> {
-						val nameArgument = callExpression.valueArguments.firstOrNull()?.getArgumentExpression()
-						var name = "unknown_function"
-						if (nameArgument is KtStringTemplateExpression) {
-							name = nameArgument.literalValue ?: nameArgument.text.take(50).trim('"')
-						} else if (nameArgument != null) {
-							val constValue = nameArgument.evaluate()?.render()?.trim('"')
-							name = constValue?.takeIf { it != "null" } ?: nameArgument.text.take(50)
-						}
+						val functionElementName = extractNameArgument("unknown_function")
 						val navigationElement = callExpression
 						// Avoid duplicates
-						if (results.none { it is KoreFunctionElement && it.name == name && it.element == navigationElement }) {
-							results.add(KoreFunctionElement(name, navigationElement))
+						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == navigationElement }) {
+							results.add(KoreFunctionElement(functionElementName, navigationElement, fileName, lineNumber))
 						}
 					}
 				}
@@ -271,7 +291,7 @@ private val KtStringTemplateExpression.literalValue: String?
 		return text?.removeSurrounding("\"\"\"")?.removeSurrounding("\"")
 	}
 
-// Custom Cell Renderer
+// Custom Cell Renderer with improved UI
 private class KoreElementCellRenderer : DefaultListCellRenderer() {
 	override fun getListCellRendererComponent(
 		list: JList<*>?,
@@ -280,15 +300,39 @@ private class KoreElementCellRenderer : DefaultListCellRenderer() {
 		isSelected: Boolean,
 		cellHasFocus: Boolean
 	): Component {
-		val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-		if (value is KoreElement && component is JLabel) {
-			component.text = value.name
-			component.icon = when (value) {
+		// Use a JPanel for more complex layout
+		val panel = JPanel(BorderLayout(JBUI.scale(5), 0)) // Horizontal gap
+		panel.accessibleContext.accessibleName = "Kore Element Cell"
+		panel.border = JBUI.Borders.empty(5) // Padding around the cell
+		panel.isOpaque = true // Important for background color selection
+		panel.background = if (isSelected) list?.selectionBackground else list?.background
+		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
+
+		if (value is KoreElement) {
+			// Icon and Name (Left/Center)
+			val nameLabel = JLabel(value.name, when (value) {
 				is KoreDataPackElement -> KoreIcons.KORE
 				is KoreFunctionElement -> KoreIcons.FUNCTION
-			}
-			component.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
+			}, LEADING)
+			nameLabel.foreground = foreground
+			nameLabel.isOpaque = false
+			panel.add(nameLabel, BorderLayout.CENTER)
+
+			// File and Line Number (Right)
+			val locationText = "${value.fileName}:${value.lineNumber}"
+			val locationLabel = JLabel(locationText)
+			locationLabel.foreground = if (isSelected) foreground.darker().darker() else JBColor.GRAY // Gray color, slightly darker on selection
+			locationLabel.horizontalAlignment = RIGHT
+			locationLabel.isOpaque = false
+			panel.add(locationLabel, BorderLayout.EAST)
+
+			// Tooltip
+			panel.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
+		} else {
+			// Fallback for unexpected values
+			panel.add(JLabel(value?.toString() ?: ""), BorderLayout.CENTER)
 		}
-		return component
+
+		return panel
 	}
 }

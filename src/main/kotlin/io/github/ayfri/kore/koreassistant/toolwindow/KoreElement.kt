@@ -2,17 +2,24 @@ package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.psi.PsiElement
 
-sealed class KoreElement(
-	open val name: String,
-	open val element: PsiElement
-)
+// Data Classes for List Elements
+sealed interface KoreElement {
+	val name: String
+	val element: PsiElement // The PSI element to navigate to
+	val fileName: String
+	val lineNumber: Int
+}
 
 data class KoreDataPackElement(
-	override val name: String, // Usually namespace:name
-	override val element: PsiElement // The call expression or a relevant argument
-) : KoreElement(name, element)
+	override val name: String,
+	override val element: PsiElement,
+	override val fileName: String,
+	override val lineNumber: Int,
+) : KoreElement
 
 data class KoreFunctionElement(
-	override val name: String, // Usually namespace:path/to/function
-	override val element: PsiElement // The call expression or the name argument
-) : KoreElement(name, element)
+	override val name: String,
+	override val element: PsiElement,
+	override val fileName: String,
+	override val lineNumber: Int,
+) : KoreElement
