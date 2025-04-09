@@ -14,7 +14,12 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    An Intellij IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
+    An IntelliJ IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
+    Features:
+    <ul>
+        <li>Gutter icons for quick identification of Kore `DataPack` objects and functions.</li>
+        <li>A dedicated "Kore Elements" tool window to easily browse Kore components within your project.</li>
+    </ul>
   ]]></description>
 
     <!-- Product and plugin compatibility requirements.
