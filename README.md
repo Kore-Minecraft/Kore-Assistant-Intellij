@@ -8,6 +8,12 @@ An Intellij IDEA extension providing powerful tools for working with [Kore](http
 [![Version](https://img.shields.io/jetbrains/plugin/v/io.github.ayfri.kore.kore-assistant.svg)](https://plugins.jetbrains.com/plugin/io.github.ayfri.kore.kore-assistant)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/io.github.ayfri.kore.kore-assistant.svg)](https://plugins.jetbrains.com/plugin/io.github.ayfri.kore.kore-assistant)
 
+<!-- Plugin description -->
+
+**Kore Assistant** is a plugin for IntelliJ IDEA that provides a variety of features to enhance your development experience with Kore.
+
+<!-- Plugin description end -->
+
 ---
 
 **Kore Assistant** enhances your development experience with Kore by providing useful features directly within IntelliJ IDEA.
