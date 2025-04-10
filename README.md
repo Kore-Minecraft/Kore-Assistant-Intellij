@@ -25,6 +25,7 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 
 *   **Gutter Icons:** Easily identify Kore `DataPack` objects and functions with dedicated icons in the editor gutter.
 *   **Kore Elements Tool Window:** Browse and navigate through the Kore components (like datapacks, functions, tags, etc.) defined in your project using a dedicated tool window.
+*   **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates respectively.
 
 ## Installation
 

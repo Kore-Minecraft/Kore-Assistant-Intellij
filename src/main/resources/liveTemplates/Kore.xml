@@ -1,0 +1,15 @@
+<templateSet group="Kore">
+    <template name="dp" value="io.github.ayfri.kore.dataPack(&quot;$NAMESPACE$&quot;) {&#10;    $END$&#10;}" description="Create a Kore Datapack" toReformat="true" toShortenFQNames="true" useStaticImport="true">
+        <variable name="NAMESPACE" expression="" defaultValue="&quot;&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN" value="true"/>
+        </context>
+    </template>
+
+    <template name="fn" value="io.github.ayfri.kore.functions.function(&quot;$PATH$&quot;) {&#10;    $END$&#10;}" description="Create a Kore Function" toReformat="true" toShortenFQNames="true" useStaticImport="true">
+        <variable name="PATH" expression="" defaultValue="&quot;&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN" value="true"/>
+        </context>
+    </template>
+</templateSet>

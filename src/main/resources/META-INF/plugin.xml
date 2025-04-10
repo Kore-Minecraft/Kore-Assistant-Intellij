@@ -35,6 +35,8 @@
                 anchor="right"
                 factoryClass="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowFactory"
                 icon="/images/kore-white.svg"/>
+
+        <defaultLiveTemplates file="/liveTemplates/Kore.xml"/>
     </extensions>
 
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
