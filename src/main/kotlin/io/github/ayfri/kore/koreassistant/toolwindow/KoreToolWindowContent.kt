@@ -135,7 +135,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		val gearMenuAction = object : DefaultActionGroup("View Options", true) {
 			init {
 				templatePresentation.icon = AllIcons.General.GearPlain
-				addAll(*gearActionGroup.getChildren(null))
+				addAll(*gearActionGroup.childActionsOrStubs)
 			}
 			override fun isDumbAware() = true
 			override fun getActionUpdateThread() = ActionUpdateThread.EDT
