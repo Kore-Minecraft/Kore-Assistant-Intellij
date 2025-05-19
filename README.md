@@ -5,8 +5,8 @@
 An Intellij IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
 
 [![Build](https://github.com/Ayfri/kore-assistant/actions/workflows/build.yml/badge.svg)](https://github.com/Ayfri/kore-assistant/actions/workflows/build.yml)
-[![Version](https://img.shields.io/jetbrains/plugin/v/io.github.ayfri.kore.kore-assistant.svg)](https://plugins.jetbrains.com/plugin/io.github.ayfri.kore.kore-assistant)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/io.github.ayfri.kore.kore-assistant.svg)](https://plugins.jetbrains.com/plugin/io.github.ayfri.kore.kore-assistant)
+[![Version](https://img.shields.io/jetbrains/plugin/v/27025.svg)](https://plugins.jetbrains.com/plugin/27025-kore-assistant)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/27025.svg)](https://plugins.jetbrains.com/plugin/27025-kore-assistant)
 
 <!-- Plugin description -->
 
