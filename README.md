@@ -1,6 +1,6 @@
 # Kore Assistant
 
-![Plugin Icon](src/main/resources/images/kore.png)
+![Plugin Icon](src/main/resources/META-INF/pluginIcon.png)
 
 An Intellij IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
 

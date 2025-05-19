@@ -6,10 +6,11 @@
         </context>
     </template>
 
-    <template name="fn" value="io.github.ayfri.kore.functions.function(&quot;$PATH$&quot;) {&#10;    $END$&#10;}" description="Create a Kore Function" toReformat="true" toShortenFQNames="true" useStaticImport="true">
+    <template name="fn" value="function(&quot;$PATH$&quot;) {&#10;    $END$&#10;}" description="Create a Kore Function" toReformat="true" toShortenFQNames="true">
         <variable name="PATH" expression="" defaultValue="&quot;&quot;" alwaysStopAt="true"/>
         <context>
             <option name="KOTLIN" value="true"/>
         </context>
+        <variable name="variable" expression="groovyScript(&quot;io.github.ayfri.kore.functions.function&quot;)" defaultValue="" alwaysStopAt="false"/>
     </template>
 </templateSet>
