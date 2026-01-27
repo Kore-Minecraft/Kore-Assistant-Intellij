@@ -47,17 +47,20 @@ import javax.swing.*
 
 // Define sorting criteria
 private enum class SortBy {
-	NAME, FILE
+	NAME,
+	FILE
 }
 
 // Define sorting order
 private enum class SortOrder {
-	ASCENDING, DESCENDING
+	ASCENDING,
+	DESCENDING
 }
 
 // Define grouping criteria
 private enum class GroupBy {
-	NONE, FILE
+	NONE,
+	FILE
 }
 
 // Define list item types for grouping
@@ -137,6 +140,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				templatePresentation.icon = AllIcons.General.GearPlain
 				addAll(*gearActionGroup.childActionsOrStubs)
 			}
+
 			override fun isDumbAware() = true
 			override fun getActionUpdateThread() = ActionUpdateThread.EDT
 			override fun update(e: AnActionEvent) {
@@ -151,7 +155,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, mainActionGroup, true)
 		toolbar.targetComponent = contentPanel
 
-		contentPanel.setToolbar(toolbar.component)
+		contentPanel.toolbar = toolbar.component
 		contentPanel.setContent(scrollPane)
 
 		DumbService.getInstance(project).runWhenSmart {
@@ -222,9 +226,6 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 						updateUIOnEDT {
 							groupAndSortAndDisplayElements() // Group, sort, and update list
 						}
-					} catch (e: ProcessCanceledException) {
-						LOGGER.info("Kore element search canceled.")
-						updateUIOnEDT { elementList.emptyText.text = "Search canceled." }
 					} catch (e: IndexNotReadyException) {
 						LOGGER.warn("Index became unavailable during search.", e)
 						updateUIOnEDT { elementList.emptyText.text = "Indexing changed. Please refresh." }
@@ -315,13 +316,15 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 
 	private fun findKoreFunctionDeclarations(
 		scope: GlobalSearchScope,
-		indicator: ProgressIndicator
+		indicator: ProgressIndicator,
 	): List<KtNamedFunction> {
 		val dataPackPackageFqn = KoreNames.KORE_DATAPACK_CLASS_ID.parent()
-		val dataPackDeclarations = findDeclarationsByName(KoreNames.KORE_DATAPACK_NAME.asString(), dataPackPackageFqn, scope, indicator)
+		val dataPackDeclarations =
+			findDeclarationsByName(KoreNames.KORE_DATAPACK_NAME.asString(), dataPackPackageFqn, scope, indicator)
 
 		val functionPackageFqn = KoreNames.KORE_FUNCTION_CLASS_ID.parent()
-		val functionDeclarations = findDeclarationsByName(KoreNames.KORE_FUNCTION_NAME.asString(), functionPackageFqn, scope, indicator)
+		val functionDeclarations =
+			findDeclarationsByName(KoreNames.KORE_FUNCTION_NAME.asString(), functionPackageFqn, scope, indicator)
 
 		return dataPackDeclarations + functionDeclarations
 	}
@@ -330,10 +333,10 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		name: String,
 		packageName: org.jetbrains.kotlin.name.FqName,
 		scope: GlobalSearchScope,
-		indicator: ProgressIndicator
+		indicator: ProgressIndicator,
 	): List<KtNamedFunction> {
 		indicator.checkCanceled()
-		return KotlinFunctionShortNameIndex.get(name, project, scope)
+		return KotlinFunctionShortNameIndex[name, project, scope]
 			.filter { declaration ->
 				declaration.containingKtFile.packageFqName == packageName
 			}
@@ -344,7 +347,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		declarationsToSearch: List<KtNamedFunction>,
 		searchScope: GlobalSearchScope, // For usages
 		indicator: ProgressIndicator,
-		results: MutableList<KoreElement>
+		results: MutableList<KoreElement>,
 	) {
 		for (declaration in declarationsToSearch) {
 			indicator.checkCanceled()
@@ -391,16 +394,15 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				when {
 					callableId == KoreNames.KORE_DATAPACK_CLASS_ID && functionName == KoreNames.KORE_DATAPACK_NAME -> {
 						val datapackName = extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
-						val navigationElement = callExpression
-						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == navigationElement }) {
-							results.add(KoreDataPackElement(datapackName, navigationElement, fileName, lineNumber))
+						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == callExpression }) {
+							results.add(KoreDataPackElement(datapackName, callExpression, fileName, lineNumber))
 						}
 					}
+
 					callableId == KoreNames.KORE_FUNCTION_CLASS_ID && functionName == KoreNames.KORE_FUNCTION_NAME -> {
 						val functionElementName = extractNameArgument("unknown_function")
-						val navigationElement = callExpression
-						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == navigationElement }) {
-							results.add(KoreFunctionElement(functionElementName, navigationElement, fileName, lineNumber))
+						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == callExpression }) {
+							results.add(KoreFunctionElement(functionElementName, callExpression, fileName, lineNumber))
 						}
 					}
 				}
@@ -414,7 +416,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 	// Action to toggle sort criteria and order
 	private inner class ToggleSortAction(
 		text: String,
-		private val sortBy: SortBy
+		private val sortBy: SortBy,
 	) : AnAction(text), DumbAware {
 		override fun actionPerformed(e: AnActionEvent) {
 			setSortCriteria(sortBy)
@@ -439,7 +441,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 	// Action to set group criteria
 	private inner class GroupAction(
 		text: String,
-		private val groupBy: GroupBy
+		private val groupBy: GroupBy,
 	) : AnAction(text), DumbAware, Toggleable {
 		override fun actionPerformed(e: AnActionEvent) {
 			setGroupCriteria(groupBy)
@@ -449,6 +451,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 			super.update(e)
 			Toggleable.setSelected(e.presentation, currentGroupBy == groupBy)
 		}
+
 		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 }
@@ -470,11 +473,24 @@ private class KoreElementCellRenderer : ListCellRenderer<ListItem> {
 		value: ListItem?,
 		index: Int,
 		isSelected: Boolean,
-		cellHasFocus: Boolean
+		cellHasFocus: Boolean,
 	): Component {
 		return when (value) {
-			is KoreElementItem -> elementRenderer.getListCellRendererComponent(list, value.element, index, isSelected, cellHasFocus)
-			is GroupSeparatorItem -> separatorRenderer.getListCellRendererComponent(list as JList<out GroupSeparatorItem>, value, index, false, false) // Separators not selectable
+			is KoreElementItem -> elementRenderer.getListCellRendererComponent(
+				list,
+				value.element,
+				index,
+				isSelected,
+				cellHasFocus
+			)
+
+			is GroupSeparatorItem -> separatorRenderer.getListCellRendererComponent(
+				list as JList<out GroupSeparatorItem>,
+				value,
+				index,
+				isSelected = false,
+				cellHasFocus = false
+			) // Separators not selectable
 			null -> // Should not happen with CollectionListModel, but handle defensively
 				JLabel("").apply {
 					isOpaque = true
@@ -492,20 +508,22 @@ private class KoreElementPanelRenderer : DefaultListCellRenderer() {
 		value: Any?, // Receives KoreElement
 		index: Int,
 		isSelected: Boolean,
-		cellHasFocus: Boolean
+		cellHasFocus: Boolean,
 	): Component {
 		val panel = JPanel(BorderLayout(JBUI.scale(5), 0))
 		panel.accessibleContext.accessibleName = "Kore Element Cell"
-		panel.border = JBUI.Borders.empty(2, 5) // Reduced vertical padding
+		panel.border = JBUI.Borders.empty(2, 5)
 		panel.isOpaque = true
 		panel.background = if (isSelected) list?.selectionBackground else list?.background
 		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
 
 		if (value is KoreElement) {
-			val nameLabel = JLabel(value.name, when (value) {
-				is KoreDataPackElement -> KoreIcons.KORE
-				is KoreFunctionElement -> KoreIcons.FUNCTION
-			}, LEADING)
+			val nameLabel = JLabel(
+				value.name, when (value) {
+					is KoreDataPackElement -> KoreIcons.KORE
+					is KoreFunctionElement -> KoreIcons.FUNCTION
+				}, LEADING
+			)
 			nameLabel.foreground = foreground
 			nameLabel.isOpaque = false
 			panel.add(nameLabel, BorderLayout.CENTER)
@@ -535,12 +553,13 @@ private class GroupSeparatorRenderer : ListCellRenderer<GroupSeparatorItem> {
 	init {
 		separator.border = JBUI.Borders.empty(3, 5) // Adjust padding
 	}
+
 	override fun getListCellRendererComponent(
 		list: JList<out GroupSeparatorItem>?,
 		value: GroupSeparatorItem?,
 		index: Int,
 		isSelected: Boolean, // Ignored
-		cellHasFocus: Boolean // Ignored
+		cellHasFocus: Boolean, // Ignored
 	): Component {
 		separator.caption = value?.name ?: ""
 		separator.background = list?.background ?: JBColor.PanelBackground // Match list background

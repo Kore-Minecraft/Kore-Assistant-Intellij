@@ -6,7 +6,6 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 
 class KoreToolWindowFactory : ToolWindowFactory {
-
 	override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
 		val toolWindowContent = KoreToolWindowContent(project)
 		val content = ContentFactory.getInstance().createContent(toolWindowContent.contentPanel, "", false)
