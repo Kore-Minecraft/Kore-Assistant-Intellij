@@ -377,6 +377,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 
 				val containingFile = callExpression.containingKtFile
 				val fileName = containingFile.name
+				val fullPath = containingFile.virtualFile?.presentableUrl ?: "Unknown location"
 				val document = PsiDocumentManager.getInstance(project).getDocument(containingFile)
 				val lineNumber = document?.getLineNumber(callExpression.textOffset)?.plus(1) ?: -1 // 1-based line number
 
@@ -391,18 +392,18 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 					return defaultName
 				}
 
-				when {
-					callableId == KoreNames.KORE_DATAPACK_CLASS_ID && functionName == KoreNames.KORE_DATAPACK_NAME -> {
+				when (callableId) {
+					KoreNames.KORE_DATAPACK_CLASS_ID if functionName == KoreNames.KORE_DATAPACK_NAME -> {
 						val datapackName = extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
 						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == callExpression }) {
-							results.add(KoreDataPackElement(datapackName, callExpression, fileName, lineNumber))
+							results.add(KoreDataPackElement(datapackName, callExpression, fileName, lineNumber, fullPath))
 						}
 					}
 
-					callableId == KoreNames.KORE_FUNCTION_CLASS_ID && functionName == KoreNames.KORE_FUNCTION_NAME -> {
+					KoreNames.KORE_FUNCTION_CLASS_ID if functionName == KoreNames.KORE_FUNCTION_NAME -> {
 						val functionElementName = extractNameArgument("unknown_function")
 						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == callExpression }) {
-							results.add(KoreFunctionElement(functionElementName, callExpression, fileName, lineNumber))
+							results.add(KoreFunctionElement(functionElementName, callExpression, fileName, lineNumber, fullPath))
 						}
 					}
 				}
@@ -536,7 +537,7 @@ private class KoreElementPanelRenderer : DefaultListCellRenderer() {
 			locationLabel.isOpaque = false
 			panel.add(locationLabel, BorderLayout.EAST)
 
-			panel.toolTipText = value.element.containingFile?.virtualFile?.presentableUrl ?: "Unknown location"
+			panel.toolTipText = value.fullPath
 		} else {
 			// Fallback for unexpected types
 			panel.add(JLabel(value?.toString() ?: ""), BorderLayout.CENTER)

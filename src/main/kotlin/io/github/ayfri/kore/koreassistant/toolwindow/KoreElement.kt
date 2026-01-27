@@ -8,6 +8,7 @@ sealed interface KoreElement {
 	val element: PsiElement // The PSI element to navigate to
 	val fileName: String
 	val lineNumber: Int
+	val fullPath: String
 }
 
 data class KoreDataPackElement(
@@ -15,6 +16,7 @@ data class KoreDataPackElement(
 	override val element: PsiElement,
 	override val fileName: String,
 	override val lineNumber: Int,
+	override val fullPath: String,
 ) : KoreElement
 
 data class KoreFunctionElement(
@@ -22,4 +24,5 @@ data class KoreFunctionElement(
 	override val element: PsiElement,
 	override val fileName: String,
 	override val lineNumber: Int,
+	override val fullPath: String,
 ) : KoreElement
