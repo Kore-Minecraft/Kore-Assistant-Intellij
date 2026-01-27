@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Make it compatible from 2025.2 up to 2028.2
+- Updated dependencies.
+
 ## [0.0.1] - 2025-05-19
 
 ### Added
