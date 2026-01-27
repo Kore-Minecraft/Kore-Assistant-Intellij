@@ -23,24 +23,26 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 
 ## Features
 
-*   **Gutter Icons:** Easily identify Kore `DataPack` objects and functions with dedicated icons in the editor gutter.
-*   **Kore Elements Tool Window:** Browse and navigate through the Kore components (like datapacks, functions, tags, etc.) defined in your project using a dedicated tool window.
-*   **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates respectively.
+* **Gutter Icons:** Easily identify Kore `DataPack` objects and functions with dedicated icons in the editor gutter.
+* **Kore Elements Tool Window:
+  ** Browse and navigate through the Kore components (like datapacks, functions, tags, etc.) defined in your project using a dedicated tool window.
+* **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates respectively.
 
 ## Installation
 
--   **Using IDE built-in plugin system:**
+- **Using IDE built-in plugin system:**
 
-    <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "Kore Assistant"</kbd> > <kbd>Install</kbd>
+  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "Kore Assistant"</kbd> > <kbd>Install</kbd>
 
--   **Manually:**
+- **Manually:**
 
-    Download the [latest release](https://github.com/Ayfri/kore-assistant/releases/latest) and install it manually using <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+  Download the [latest release](https://github.com/Ayfri/kore-assistant/releases/latest) and install it manually using <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
 
 ## Usage
 
--   **Gutter Icons:** Look for the Kore icon (✨) next to your `DataPack` object declarations and function definitions.
--   **Kore Elements Tool Window:** Access the tool window via <kbd>View</kbd> > <kbd>Tool Windows</kbd> > <kbd>Kore Elements</kbd>. It displays a tree view of the Kore elements found in your current project.
+- **Gutter Icons:** Look for the Kore icon next to your `DataPack` object declarations and function definitions.
+- **Kore Elements Tool Window:
+  ** Access the tool window via <kbd>View</kbd> > <kbd>Tool Windows</kbd> > <kbd>Kore Elements</kbd>. It displays a tree view of the Kore elements found in your current project.
 
 ## License
 
@@ -48,4 +50,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgements
 
-*   Based on the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template).
+* Based on the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template).
