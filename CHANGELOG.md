@@ -4,6 +4,12 @@
 
 ## [0.0.3] - 2026-07-22
 
+### Changed
+
+- Kore elements are now PSI-free DTOs referencing a file URL and offset, so the tool window cache survives reindexing and can cross the RPC boundary in split mode.
+- Deduplicate found elements through a set instead of a linear scan.
+- Reuse the tool window cell renderer components instead of allocating a panel per repaint.
+
 ### Maintenance
 
 - Make it compatible from 2026.2 up to 2029.2
