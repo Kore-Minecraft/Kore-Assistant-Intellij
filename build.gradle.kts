@@ -1,6 +1,7 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.tasks.aware.SplitModeAware
 
 plugins {
 	id("java") // Java support
@@ -120,6 +121,12 @@ tasks {
 
 	publishPlugin {
 		dependsOn(patchChangelog)
+	}
+
+	// `runIdeSplitMode` is provided by the IntelliJ Platform Gradle Plugin and boots a local backend plus
+	// JetBrains Client frontend. The plugin is backend-only for now; switch to BOTH once a frontend module exists.
+	runIdeSplitMode {
+		pluginInstallationTarget = SplitModeAware.PluginInstallationTarget.BACKEND
 	}
 }
 
