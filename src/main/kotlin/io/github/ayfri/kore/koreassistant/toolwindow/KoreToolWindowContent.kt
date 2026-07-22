@@ -3,7 +3,7 @@ package io.github.ayfri.kore.koreassistant.toolwindow
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -294,24 +294,23 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 	}
 
 	private fun findKoreElements(indicator: ProgressIndicator): List<KoreElement> {
-		val elements = mutableListOf<KoreElement>()
 		val declarationSearchScope = GlobalSearchScope.allScope(project)
 
-		runReadAction {
+		return ReadAction.nonBlocking<List<KoreElement>> {
+			val elements = mutableListOf<KoreElement>()
 			indicator.checkCanceled()
 
 			val koreDeclarations = findKoreFunctionDeclarations(declarationSearchScope, indicator)
 			if (koreDeclarations.isEmpty()) {
 				LOGGER.warn("Could not find Kore function declarations via index search (using allScope). Ensure Kore library is a project dependency and indexed.")
-				return@runReadAction
+				return@nonBlocking elements
 			}
 
 			val usageSearchScope = GlobalSearchScope.projectScope(project)
 			searchForReferences(koreDeclarations, usageSearchScope, indicator, elements)
 
-		} // End ReadAction
-
-		return elements
+			elements
+		}.wrapProgress(indicator).executeSynchronously()
 	}
 
 	private fun findKoreFunctionDeclarations(
