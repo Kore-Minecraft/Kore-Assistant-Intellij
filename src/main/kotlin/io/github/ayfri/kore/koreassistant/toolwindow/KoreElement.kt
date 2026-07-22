@@ -1,28 +1,32 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
-import com.intellij.psi.PsiElement
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VfsUtilCore
+import io.github.ayfri.kore.koreassistant.KoreIcons
+import javax.swing.Icon
 
-// Data Classes for List Elements
-sealed interface KoreElement {
-	val name: String
-	val element: PsiElement // The PSI element to navigate to
-	val fileName: String
-	val lineNumber: Int
-	val fullPath: String
+enum class KoreElementKind {
+	DATA_PACK,
+	FUNCTION;
+
+	// Resolved lazily so loading this enum never forces icon loading.
+	val icon: Icon get() = if (this == DATA_PACK) KoreIcons.KORE else KoreIcons.FUNCTION
 }
 
-data class KoreDataPackElement(
-	override val name: String,
-	override val element: PsiElement,
-	override val fileName: String,
-	override val lineNumber: Int,
-	override val fullPath: String,
-) : KoreElement
-
-data class KoreFunctionElement(
-	override val name: String,
-	override val element: PsiElement,
-	override val fileName: String,
-	override val lineNumber: Int,
-	override val fullPath: String,
-) : KoreElement
+/**
+ * PSI-free descriptor of a Kore element, identified by VFS url + offset.
+ *
+ * Holding no PSI keeps the cache cheap, safe across reindexing, and serializable, so the tool window
+ * can move to the frontend in split mode without dragging the PSI graph across the RPC boundary.
+ */
+data class KoreElement(
+	val kind: KoreElementKind,
+	val name: String,
+	val fileUrl: String,
+	val fileName: String,
+	val offset: Int,
+	val lineNumber: Int,
+) {
+	// Only the tooltip needs it, so it is never computed for rows that are merely listed.
+	val presentablePath: String get() = FileUtil.toSystemDependentName(VfsUtilCore.urlToPath(fileUrl))
+}

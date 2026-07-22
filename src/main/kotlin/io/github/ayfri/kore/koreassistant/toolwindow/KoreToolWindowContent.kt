@@ -5,7 +5,7 @@ import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -14,9 +14,8 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
-import com.intellij.psi.NavigatablePsiElement
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
@@ -27,7 +26,6 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
-import io.github.ayfri.kore.koreassistant.KoreIcons
 import io.github.ayfri.kore.koreassistant.KoreNames
 import io.github.ayfri.kore.koreassistant.actions.RefreshKoreElementsAction
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
@@ -93,7 +91,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				if (e.clickCount == 2) {
 					val selected = elementList.selectedValue
 					if (selected is KoreElementItem) {
-						navigateToElement(selected.element.element)
+						navigateToElement(selected.element)
 					}
 				}
 			}
@@ -185,18 +183,16 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		}
 	}
 
-	private fun navigateToElement(element: PsiElement) {
-		if (element is NavigatablePsiElement && element.canNavigate()) {
-			ApplicationManager.getApplication().invokeLater {
-				element.navigate(true)
-				val file = element.containingFile?.virtualFile
-				if (file != null) {
-					FileEditorManager.getInstance(project).openFile(file, true)
-				}
-			}
-		} else {
-			LOGGER.warn("Cannot navigate to element: $element (Not Navigatable or cannot navigate)")
+	// Called from the EDT (mouse listener); resolves the url lazily so a stale cache entry cannot leak a dead PSI reference.
+	private fun navigateToElement(element: KoreElement) {
+		val file = VirtualFileManager.getInstance().findFileByUrl(element.fileUrl)
+		if (file == null || !file.isValid) {
+			LOGGER.warn("Cannot navigate, file is gone: ${element.fileUrl}")
+			elementList.emptyText.text = "File no longer exists. Please refresh."
+			return
 		}
+
+		OpenFileDescriptor(project, file, element.offset).navigate(true)
 	}
 
 	internal fun refreshElements(forceScan: Boolean) {
@@ -297,19 +293,20 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		val declarationSearchScope = GlobalSearchScope.allScope(project)
 
 		return ReadAction.nonBlocking<List<KoreElement>> {
-			val elements = mutableListOf<KoreElement>()
 			indicator.checkCanceled()
 
 			val koreDeclarations = findKoreFunctionDeclarations(declarationSearchScope, indicator)
 			if (koreDeclarations.isEmpty()) {
 				LOGGER.warn("Could not find Kore function declarations via index search (using allScope). Ensure Kore library is a project dependency and indexed.")
-				return@nonBlocking elements
+				return@nonBlocking emptyList()
 			}
 
+			// A LinkedHashSet dedupes in O(1) while preserving discovery order; the previous list scan was O(n²).
+			val elements = LinkedHashSet<KoreElement>()
 			val usageSearchScope = GlobalSearchScope.projectScope(project)
 			searchForReferences(koreDeclarations, usageSearchScope, indicator, elements)
 
-			elements
+			elements.toList()
 		}.wrapProgress(indicator).executeSynchronously()
 	}
 
@@ -346,7 +343,7 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 		declarationsToSearch: List<KtNamedFunction>,
 		searchScope: GlobalSearchScope, // For usages
 		indicator: ProgressIndicator,
-		results: MutableList<KoreElement>,
+		results: MutableSet<KoreElement>,
 	) {
 		for (declaration in declarationsToSearch) {
 			indicator.checkCanceled()
@@ -354,13 +351,12 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 			query.forEach { psiReference ->
 				indicator.checkCanceled()
 				processReference(psiReference, results)
-				true // Continue processing
 			}
 		}
 	}
 
 	@OptIn(KaIdeApi::class)
-	private fun processReference(psiReference: PsiReference, results: MutableList<KoreElement>) {
+	private fun processReference(psiReference: PsiReference, results: MutableSet<KoreElement>) {
 		val element = psiReference.element
 		val callExpression = PsiTreeUtil.getParentOfType(element, KtCallExpression::class.java, false)?.takeIf {
 			val callee = it.calleeExpression
@@ -375,10 +371,12 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 				val functionName = functionSymbol.name
 
 				val containingFile = callExpression.containingKtFile
-				val fileName = containingFile.name
-				val fullPath = containingFile.virtualFile?.presentableUrl ?: "Unknown location"
+				val virtualFile = containingFile.virtualFile ?: return@analyze
+				val fileName = virtualFile.name
+				val fileUrl = virtualFile.url
+				val offset = callExpression.textOffset
 				val document = PsiDocumentManager.getInstance(project).getDocument(containingFile)
-				val lineNumber = document?.getLineNumber(callExpression.textOffset)?.plus(1) ?: -1 // 1-based line number
+				val lineNumber = document?.getLineNumber(offset)?.plus(1) ?: -1 // 1-based line number
 
 				fun extractNameArgument(defaultName: String): String {
 					val nameArgument = callExpression.valueArguments.firstOrNull()?.getArgumentExpression()
@@ -391,21 +389,18 @@ class KoreToolWindowContent(private val project: Project) : DumbAware {
 					return defaultName
 				}
 
-				when (callableId) {
-					KoreNames.KORE_DATAPACK_CLASS_ID if functionName == KoreNames.KORE_DATAPACK_NAME -> {
-						val datapackName = extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
-						if (results.none { it is KoreDataPackElement && it.name == datapackName && it.element == callExpression }) {
-							results.add(KoreDataPackElement(datapackName, callExpression, fileName, lineNumber, fullPath))
-						}
-					}
-
-					KoreNames.KORE_FUNCTION_CLASS_ID if functionName == KoreNames.KORE_FUNCTION_NAME -> {
-						val functionElementName = extractNameArgument("unknown_function")
-						if (results.none { it is KoreFunctionElement && it.name == functionElementName && it.element == callExpression }) {
-							results.add(KoreFunctionElement(functionElementName, callExpression, fileName, lineNumber, fullPath))
-						}
-					}
+				val kind = when (callableId) {
+					KoreNames.KORE_DATAPACK_CLASS_ID if functionName == KoreNames.KORE_DATAPACK_NAME -> KoreElementKind.DATA_PACK
+					KoreNames.KORE_FUNCTION_CLASS_ID if functionName == KoreNames.KORE_FUNCTION_NAME -> KoreElementKind.FUNCTION
+					else -> return@analyze
 				}
+
+				val elementName = when (kind) {
+					KoreElementKind.DATA_PACK -> extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
+					KoreElementKind.FUNCTION -> extractNameArgument("unknown_function")
+				}
+
+				results += KoreElement(kind, elementName, fileUrl, fileName, offset, lineNumber)
 			}
 		} catch (e: Exception) {
 			if (e is ProcessCanceledException) throw e
@@ -467,6 +462,7 @@ private val KtStringTemplateExpression.literalValue: String?
 private class KoreElementCellRenderer : ListCellRenderer<ListItem> {
 	private val elementRenderer = KoreElementPanelRenderer()
 	private val separatorRenderer = GroupSeparatorRenderer()
+	private val emptyLabel = JLabel("").apply { isOpaque = true }
 
 	override fun getListCellRendererComponent(
 		list: JList<out ListItem>?,
@@ -474,97 +470,62 @@ private class KoreElementCellRenderer : ListCellRenderer<ListItem> {
 		index: Int,
 		isSelected: Boolean,
 		cellHasFocus: Boolean,
-	): Component {
-		return when (value) {
-			is KoreElementItem -> elementRenderer.getListCellRendererComponent(
-				list,
-				value.element,
-				index,
-				isSelected,
-				cellHasFocus
-			)
-
-			is GroupSeparatorItem -> separatorRenderer.getListCellRendererComponent(
-				list as JList<out GroupSeparatorItem>,
-				value,
-				index,
-				isSelected = false,
-				cellHasFocus = false
-			) // Separators not selectable
-			null -> // Should not happen with CollectionListModel, but handle defensively
-				JLabel("").apply {
-					isOpaque = true
-					background = list?.background ?: JBColor.PanelBackground
-					foreground = list?.foreground ?: JBColor.foreground()
-				}
+	) = when (value) {
+		is KoreElementItem -> elementRenderer.render(list, value.element, isSelected)
+		is GroupSeparatorItem -> separatorRenderer.render(list, value) // Separators not selectable
+		null -> emptyLabel.apply { // Should not happen with CollectionListModel, but handle defensively
+			background = list?.background ?: JBColor.PanelBackground
+			foreground = list?.foreground ?: JBColor.foreground()
 		}
 	}
 }
 
-// Panel for rendering KoreElement
-private class KoreElementPanelRenderer : DefaultListCellRenderer() {
-	override fun getListCellRendererComponent(
-		list: JList<*>?,
-		value: Any?, // Receives KoreElement
-		index: Int,
-		isSelected: Boolean,
-		cellHasFocus: Boolean,
-	): Component {
-		val panel = JPanel(BorderLayout(JBUI.scale(5), 0))
-		panel.accessibleContext.accessibleName = "Kore Element Cell"
-		panel.border = JBUI.Borders.empty(2, 5)
-		panel.isOpaque = true
-		panel.background = if (isSelected) list?.selectionBackground else list?.background
+// Panel for rendering KoreElement. Components are built once and mutated per cell, as a JList repaints
+// every visible row on each scroll/selection tick and allocating a panel per row there is pure garbage.
+private class KoreElementPanelRenderer {
+	private val nameLabel = JLabel().apply { isOpaque = false }
+	private val locationLabel = JLabel().apply {
+		isOpaque = false
+		horizontalAlignment = SwingConstants.RIGHT
+	}
+	private val panel = JPanel(BorderLayout(JBUI.scale(5), 0)).apply {
+		accessibleContext.accessibleName = "Kore Element Cell"
+		border = JBUI.Borders.empty(2, 5)
+		isOpaque = true
+		add(nameLabel, BorderLayout.CENTER)
+		add(locationLabel, BorderLayout.EAST)
+	}
+
+	fun render(list: JList<*>?, value: KoreElement, isSelected: Boolean): Component {
 		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
+		panel.background = if (isSelected) list?.selectionBackground else list?.background
+		panel.toolTipText = value.presentablePath
 
-		if (value is KoreElement) {
-			val nameLabel = JLabel(
-				value.name, when (value) {
-					is KoreDataPackElement -> KoreIcons.KORE
-					is KoreFunctionElement -> KoreIcons.FUNCTION
-				}, LEADING
-			)
-			nameLabel.foreground = foreground
-			nameLabel.isOpaque = false
-			panel.add(nameLabel, BorderLayout.CENTER)
+		nameLabel.text = value.name
+		nameLabel.icon = value.kind.icon
+		nameLabel.foreground = foreground
 
-			val locationText = "${value.fileName}:${value.lineNumber}"
-			val locationLabel = JLabel(locationText)
-			// Slightly dimmed foreground for location
-			locationLabel.foreground = if (isSelected) foreground.darker() else JBColor.GRAY
-			locationLabel.horizontalAlignment = RIGHT
-			locationLabel.isOpaque = false
-			panel.add(locationLabel, BorderLayout.EAST)
-
-			panel.toolTipText = value.fullPath
-		} else {
-			// Fallback for unexpected types
-			panel.add(JLabel(value?.toString() ?: ""), BorderLayout.CENTER)
-		}
+		locationLabel.text = "${value.fileName}:${value.lineNumber}"
+		// Slightly dimmed foreground for location
+		locationLabel.foreground = if (isSelected) foreground.darker() else JBColor.GRAY
 
 		return panel
 	}
 }
 
 // Renderer for GroupSeparatorItem
-private class GroupSeparatorRenderer : ListCellRenderer<GroupSeparatorItem> {
+private class GroupSeparatorRenderer {
 	private val separator = GroupHeaderSeparator(JBUI.emptyInsets())
 
 	init {
 		separator.border = JBUI.Borders.empty(3, 5) // Adjust padding
+		separator.setCaptionCentered(false)
 	}
 
-	override fun getListCellRendererComponent(
-		list: JList<out GroupSeparatorItem>?,
-		value: GroupSeparatorItem?,
-		index: Int,
-		isSelected: Boolean, // Ignored
-		cellHasFocus: Boolean, // Ignored
-	): Component {
-		separator.caption = value?.name ?: ""
+	fun render(list: JList<*>?, value: GroupSeparatorItem): Component {
+		separator.caption = value.name
 		separator.background = list?.background ?: JBColor.PanelBackground // Match list background
 		separator.foreground = list?.foreground ?: JBColor.foreground() // Match list foreground
-		separator.setCaptionCentered(false)
 		return separator
 	}
 }
