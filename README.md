@@ -2,7 +2,7 @@
 
 ![Plugin Icon](src/main/resources/META-INF/pluginIcon.svg)
 
-An Intellij IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
+An IntelliJ IDEA extension providing powerful tools for working with [Kore](https://kore.ayfri.com), a Kotlin library for creating Minecraft datapacks without writing JSON.
 
 [![Build](https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/actions/workflows/build.yml/badge.svg)](https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/actions/workflows/build.yml)
 [![Version](https://img.shields.io/jetbrains/plugin/v/27025.svg)](https://plugins.jetbrains.com/plugin/27025-kore-assistant)
@@ -14,6 +14,7 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 
 - Gutter icons for quick identification of Kore `DataPack` objects and functions.
 - A dedicated "Kore Elements" tool window to easily browse Kore components within your project.
+- Live templates to quickly scaffold `dataPack` and `function` blocks.
 
 <!-- Plugin description end -->
 
@@ -24,8 +25,7 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 ## Features
 
 * **Gutter Icons:** Easily identify Kore `DataPack` objects and functions with dedicated icons in the editor gutter.
-* **Kore Elements Tool Window:
-  ** Browse and navigate through the Kore components (like datapacks, functions, tags, etc.) defined in your project using a dedicated tool window.
+* **Kore Elements Tool Window:** Browse and navigate through the Kore `dataPack` and `function` declarations defined in your project, with sorting and grouping by file.
 * **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates respectively.
 
 ## Installation
@@ -41,8 +41,7 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 ## Usage
 
 - **Gutter Icons:** Look for the Kore icon next to your `DataPack` object declarations and function definitions.
-- **Kore Elements Tool Window:
-  ** Access the tool window via <kbd>View</kbd> > <kbd>Tool Windows</kbd> > <kbd>Kore Elements</kbd>. It displays a tree view of the Kore elements found in your current project.
+- **Kore Elements Tool Window:** Access the tool window via <kbd>View</kbd> > <kbd>Tool Windows</kbd> > <kbd>Kore Elements</kbd>. It lists the Kore elements found in your current project; double-click an entry to jump to it.
 
 ## License
 
