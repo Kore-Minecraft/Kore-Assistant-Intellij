@@ -36,7 +36,7 @@ An IntelliJ IDEA extension providing powerful tools for working with [Kore](http
 
 - **Manually:**
 
-  Download the [latest release](https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/releases/latest) and install it manually using <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+  Download the [latest version](https://plugins.jetbrains.com/plugin/27025-kore-assistant/versions) from JetBrains Marketplace and install it manually using <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
 
 ## Usage
 
