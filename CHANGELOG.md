@@ -31,6 +31,7 @@
 - Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), recording
   the namespace, directory and enclosing datapack of each one, backing the tool window in place of the old
   `ReferencesSearch` scan.
+- Added the first tests, covering the declaration index, the Kore-resolution filter and the output tree.
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the
   duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.

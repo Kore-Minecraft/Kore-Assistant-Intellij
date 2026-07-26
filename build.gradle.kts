@@ -30,6 +30,9 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
+	// The platform test framework exposes JUnit 3-style `BasePlatformTestCase`, whose runner still lives in JUnit 4.
+	testImplementation(libs.junit)
+
 	// IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
 	intellijPlatform {
 		create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
