@@ -2,10 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+
+- The "Kore Elements" tool window now lists every kind of Kore declaration (advancements, loot tables, recipes,
+  predicates, worldgen, ...) instead of only `dataPack` and `function`, as a tree mirroring the generated datapack
+  layout.
+- The tool window can group by output structure, source file or a flat list, and gained a filter field, speed search,
+  Expand All / Collapse All, and Enter to open the selected element.
+- Hovering an element shows the path Kore will generate it to, e.g. `data/mypack/advancement/root.json`.
+- Resources declared in `fun DataPack.xxx()` extensions, the layout Kore recommends, appear under the datapack that
+  calls them.
+
 ### Changed
 
 - The "Kore Elements" tool window now hides itself entirely on non-Kore projects and has a proper tab name instead of an
   unnamed one.
+- The tool window refreshes itself as you edit Kotlin files instead of only when the Refresh button is pressed.
 
 ### Fixed
 
@@ -17,7 +29,8 @@
 ### Maintenance
 
 - Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), recording
-  the namespace, directory and enclosing datapack of each one.
+  the namespace, directory and enclosing datapack of each one, backing the tool window in place of the old
+  `ReferencesSearch` scan.
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the
   duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.

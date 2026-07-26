@@ -1,12 +1,11 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAware
@@ -15,517 +14,290 @@ import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiReference
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.searches.ReferencesSearch
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.ui.CollectionListModel
-import com.intellij.ui.GroupHeaderSeparator
-import com.intellij.ui.JBColor
-import com.intellij.ui.components.JBList
+import com.intellij.psi.PsiTreeChangeAdapter
+import com.intellij.psi.PsiTreeChangeEvent
+import com.intellij.psi.PsiManager
+import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.DoubleClickListener
+import com.intellij.ui.SearchTextField
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.util.ui.JBUI
-import io.github.ayfri.kore.koreassistant.KoreNames
+import com.intellij.ui.treeStructure.Tree
+import com.intellij.util.ui.tree.TreeUtil
+import com.intellij.util.ui.update.MergingUpdateQueue
+import com.intellij.util.ui.update.Update
 import io.github.ayfri.kore.koreassistant.actions.RefreshKoreElementsAction
-import org.jetbrains.kotlin.analysis.api.KaIdeApi
-import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
-import org.jetbrains.kotlin.analysis.api.resolution.symbol
-import org.jetbrains.kotlin.analysis.api.symbols.name
-import org.jetbrains.kotlin.idea.stubindex.KotlinFunctionShortNameIndex
-import org.jetbrains.kotlin.psi.KtCallExpression
-import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.psi.KtStringTemplateExpression
+import org.jetbrains.kotlin.psi.KtFile
 import java.awt.BorderLayout
-import java.awt.Component
-import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.JTree
+import javax.swing.event.DocumentEvent
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeSelectionModel
 
-// Define sorting criteria
-private enum class SortBy {
-	NAME,
-	FILE
-}
+// Deep enough to show every namespace's folders without exploding a datapack with thousands of elements.
+private const val DEFAULT_EXPANSION_DEPTH = 3
+private const val REFRESH_MERGE_DELAY_MS = 300
 
-// Define sorting order
-private enum class SortOrder {
-	ASCENDING,
-	DESCENDING
-}
+class KoreToolWindowContent(private val project: Project) : Disposable {
+	private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
+	private val tree = Tree(treeModel)
+	private val filterField = SearchTextField(false)
+	val contentPanel = SimpleToolWindowPanel(true, true)
 
-// Define grouping criteria
-private enum class GroupBy {
-	NONE,
-	FILE
-}
+	private var groupBy = KoreGroupBy.OUTPUT
+	private var sortBy = KoreSortBy.NAME
+	private var sortOrder = KoreSortOrder.ASCENDING
+	private var elements = emptyList<KoreElement>()
+	private var waitingForSmartMode = false
 
-// Define list item types for grouping
-private sealed class ListItem
-private data class KoreElementItem(val element: KoreElement) : ListItem()
-private data class GroupSeparatorItem(val name: String) : ListItem()
-
-
-class KoreToolWindowContent(private val project: Project) : DumbAware {
-	// Use ListItem to accommodate separators
-	private val listModel = CollectionListModel<ListItem>()
-	private val elementList = JBList(listModel)
-	val contentPanel: SimpleToolWindowPanel = SimpleToolWindowPanel(true, true) // Vertical toolbar
-	private var currentSortBy = SortBy.NAME
-	private var currentSortOrder = SortOrder.ASCENDING
-	private var currentGroupBy = GroupBy.NONE // Default grouping
-	private val foundElementsCache = mutableListOf<KoreElement>() // Cache found elements
+	// Kotlin edits arrive per keystroke; the queue collapses a typing burst into a single index re-query.
+	private val refreshQueue =
+		MergingUpdateQueue("KoreElements", REFRESH_MERGE_DELAY_MS, true, MergingUpdateQueue.ANY_COMPONENT, this)
 
 	companion object {
 		private val LOGGER = Logger.getInstance(KoreToolWindowContent::class.java)
 	}
 
 	init {
-		elementList.cellRenderer = KoreElementCellRenderer()
-		elementList.selectionMode = ListSelectionModel.SINGLE_SELECTION
-		elementList.emptyText.text = "Press Refresh or wait for indexing..."
+		tree.isRootVisible = false
+		tree.showsRootHandles = true
+		tree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
+		tree.cellRenderer = KoreTreeCellRenderer()
+		tree.emptyText.text = "Waiting for indexing to finish..."
+		TreeSpeedSearch.installOn(tree, true) { path ->
+			(path.lastPathComponent as? DefaultMutableTreeNode)?.koreNode?.label
+		}
 
-		elementList.addMouseListener(object : MouseAdapter() {
-			override fun mouseClicked(e: MouseEvent) {
-				if (e.clickCount == 2) {
-					val selected = elementList.selectedValue
-					if (selected is KoreElementItem) {
-						navigateToElement(selected.element)
-					}
-				}
+		object : DoubleClickListener() {
+			override fun onDoubleClick(event: MouseEvent) = navigateToSelection()
+		}.installOn(tree)
+
+		object : AnAction(), DumbAware {
+			override fun actionPerformed(e: AnActionEvent) {
+				navigateToSelection()
 			}
+
+			override fun getActionUpdateThread() = ActionUpdateThread.EDT
+		}.registerCustomShortcutSet(CommonShortcuts.ENTER, tree, this)
+
+		filterField.textEditor.emptyText.text = "Filter by name, namespace or path"
+		filterField.addDocumentListener(object : DocumentAdapter() {
+			override fun textChanged(e: DocumentEvent) = rebuildTree()
 		})
 
-		val scrollPane = JBScrollPane(elementList)
+		contentPanel.toolbar = createToolbar()
+		contentPanel.setContent(JPanel(BorderLayout()).apply {
+			add(filterField, BorderLayout.NORTH)
+			add(JBScrollPane(tree), BorderLayout.CENTER)
+		})
 
-		// Create Toolbar Actions
-		val actionManager = ActionManager.getInstance()
-		val mainActionGroup = DefaultActionGroup()
+		PsiManager.getInstance(project).addPsiTreeChangeListener(KotlinChangeListener(), this)
+		refreshElements()
+	}
 
-		// 1. Refresh Action
-		val refreshAction = RefreshKoreElementsAction { refreshElements(true) }
-		mainActionGroup.add(refreshAction)
-		mainActionGroup.addSeparator()
+	override fun dispose() = Unit
 
-		// 2. Sorting Actions
-		val sortByNameAction = ToggleSortAction("Sort by Name", SortBy.NAME)
-		val sortByFileAction = ToggleSortAction("Sort by File", SortBy.FILE)
+	private fun createToolbar(): JComponent {
+		val sortGroup = DefaultActionGroup("Sort By", true).apply {
+			KoreSortBy.entries.forEach { add(SortAction(it)) }
+		}
+		val groupGroup = DefaultActionGroup("Group By", true).apply {
+			KoreGroupBy.entries.forEach { add(GroupAction(it)) }
+		}
 
-		// 3. Grouping Actions
-		val groupByNoneAction = GroupAction("No Grouping", GroupBy.NONE)
-		val groupByFileAction = GroupAction("Group by File", GroupBy.FILE)
-
-		// 4. Create the group for the gear menu popup
-		val gearActionGroup = DefaultActionGroup("View Options", true) // true makes it a popup
-
-		// Sort By Submenu
-		val sortByGroup = DefaultActionGroup("Sort By", true)
-		sortByGroup.add(sortByNameAction)
-		sortByGroup.add(sortByFileAction)
-		gearActionGroup.add(sortByGroup)
-		gearActionGroup.addSeparator()
-
-		// Group By Submenu
-		val groupByGroup = DefaultActionGroup("Group By", true)
-		groupByGroup.add(groupByNoneAction)
-		groupByGroup.add(groupByFileAction)
-		gearActionGroup.add(groupByGroup)
-
-		// 5. Create the Gear Action
-		val gearMenuAction = object : DefaultActionGroup("View Options", true) {
+		val viewOptions = object : DefaultActionGroup("View Options", true), DumbAware {
 			init {
 				templatePresentation.icon = AllIcons.General.GearPlain
-				addAll(*gearActionGroup.childActionsOrStubs)
+				add(sortGroup)
+				addSeparator()
+				add(groupGroup)
 			}
+		}.apply { isPopup = true }
 
-			override fun isDumbAware() = true
-			override fun getActionUpdateThread() = ActionUpdateThread.EDT
-			override fun update(e: AnActionEvent) {
-				e.presentation.icon = AllIcons.General.GearPlain
-			}
+		val actions = DefaultActionGroup().apply {
+			add(RefreshKoreElementsAction(::refreshElements))
+			add(ExpandAllAction())
+			add(CollapseAllAction())
+			addSeparator()
+			add(viewOptions)
 		}
-		gearMenuAction.isPopup = true
 
-		// 6. Add the Gear menu action to the main toolbar
-		mainActionGroup.add(gearMenuAction)
-
-		val toolbar = actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, mainActionGroup, true)
-		toolbar.targetComponent = contentPanel
-
-		contentPanel.toolbar = toolbar.component
-		contentPanel.setContent(scrollPane)
-
-		DumbService.getInstance(project).runWhenSmart {
-			refreshElements(true)
-		}
+		return ActionManager.getInstance()
+			.createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, actions, true)
+			.also { it.targetComponent = contentPanel }
+			.component
 	}
 
-	private fun setSortCriteria(sortBy: SortBy) {
-		val needsResort = if (currentSortBy != sortBy) {
-			currentSortBy = sortBy
-			currentSortOrder = SortOrder.ASCENDING // Reset order when changing criteria
-			true
-		} else {
-			// If same criteria, toggle order
-			currentSortOrder = if (currentSortOrder == SortOrder.ASCENDING) SortOrder.DESCENDING else SortOrder.ASCENDING
-			true
-		}
-		if (needsResort) {
-			groupAndSortAndDisplayElements() // Update UI
-		}
-	}
-
-	private fun setGroupCriteria(groupBy: GroupBy) {
-		if (currentGroupBy != groupBy) {
-			currentGroupBy = groupBy
-			groupAndSortAndDisplayElements() // Re-group, re-sort, and update UI
-		}
-	}
-
-	// Called from the EDT (mouse listener); resolves the url lazily so a stale cache entry cannot leak a dead PSI reference.
-	private fun navigateToElement(element: KoreElement) {
-		val file = VirtualFileManager.getInstance().findFileByUrl(element.fileUrl)
-		if (file == null || !file.isValid) {
-			LOGGER.warn("Cannot navigate, file is gone: ${element.fileUrl}")
-			elementList.emptyText.text = "File no longer exists. Please refresh."
+	internal fun refreshElements() {
+		if (DumbService.getInstance(project).isDumb) {
+			retryWhenSmart()
 			return
 		}
 
+		tree.setPaintBusy(true)
+		tree.emptyText.text = "Finding Kore elements..."
+
+		object : Task.Backgroundable(project, "Finding Kore Elements", true), DumbAware {
+			override fun run(indicator: ProgressIndicator) {
+				indicator.isIndeterminate = true
+
+				try {
+					// Indexing can restart between the check above and here, so the index may still refuse to answer.
+					if (DumbService.getInstance(project).isDumb) return onEdt(::retryWhenSmart)
+
+					val found = KoreElementFinder.findAll(project, indicator)
+					onEdt {
+						elements = found
+						rebuildTree()
+					}
+				} catch (e: IndexNotReadyException) {
+					LOGGER.warn("Index became unavailable during search, retrying once indexing settles.", e)
+					onEdt(::retryWhenSmart)
+				} catch (e: Exception) {
+					LOGGER.error("Error finding Kore elements", e)
+					onEdt { tree.emptyText.text = "Error finding elements. See logs." }
+				} finally {
+					onEdt { tree.setPaintBusy(false) }
+				}
+			}
+		}.queue()
+	}
+
+	/**
+	 * `runWhenSmart` fires once, and indexing arrives in waves while a project opens, so a single callback
+	 * usually lands back in dumb mode. Re-arming until it actually sticks is what keeps the tree from staying
+	 * empty until the user happens to edit a file. The flag keeps only one callback pending at a time.
+	 */
+	private fun retryWhenSmart() {
+		tree.emptyText.text = "Waiting for indexing to finish..."
+		if (waitingForSmartMode) return
+
+		waitingForSmartMode = true
+		DumbService.getInstance(project).runWhenSmart {
+			waitingForSmartMode = false
+			refreshElements()
+		}
+	}
+
+	private fun rebuildTree() {
+		val filter = filterField.text.trim()
+		val visible = elements.filter { it.matches(filter) }
+
+		treeModel.setRoot(buildKoreTree(visible, groupBy, sortBy, sortOrder))
+		TreeUtil.expand(tree, DEFAULT_EXPANSION_DEPTH)
+
+		tree.emptyText.text = when {
+			elements.isEmpty() -> "No Kore elements found."
+			visible.isEmpty() -> "No element matches '$filter'."
+			else -> ""
+		}
+	}
+
+	// Resolves the url lazily so a stale snapshot cannot leak a dead PSI reference.
+	private fun navigateToSelection(): Boolean {
+		val element = tree.selectionPath?.lastPathComponent
+			?.let { (it as? DefaultMutableTreeNode)?.koreNode?.element } ?: return false
+
+		val file = VirtualFileManager.getInstance().findFileByUrl(element.fileUrl)
+		if (file == null || !file.isValid) {
+			LOGGER.warn("Cannot navigate, file is gone: ${element.fileUrl}")
+			refreshElements()
+			return false
+		}
+
 		OpenFileDescriptor(project, file, element.offset).navigate(true)
+		return true
 	}
 
-	internal fun refreshElements(forceScan: Boolean) {
-		if (forceScan) {
-			listModel.removeAll()
-			foundElementsCache.clear()
-			elementList.setPaintBusy(true)
-			elementList.emptyText.text = "Finding Kore elements..."
+	private fun onEdt(action: () -> Unit) = ApplicationManager.getApplication().invokeLater(action)
 
-			object : Task.Backgroundable(project, "Finding Kore Elements", true), DumbAware {
-				override fun run(indicator: ProgressIndicator) {
-					indicator.isIndeterminate = true
+	/** Only Kotlin files feed the index, so anything else is dropped before it reaches the queue. */
+	private inner class KotlinChangeListener : PsiTreeChangeAdapter() {
+		override fun childrenChanged(event: PsiTreeChangeEvent) = scheduleRefresh(event)
+		override fun childAdded(event: PsiTreeChangeEvent) = scheduleRefresh(event)
+		override fun childRemoved(event: PsiTreeChangeEvent) = scheduleRefresh(event)
+		override fun childReplaced(event: PsiTreeChangeEvent) = scheduleRefresh(event)
 
-					if (DumbService.getInstance(project).isDumb) {
-						LOGGER.info("Project is indexing. Deferring Kore element search.")
-						updateUIOnEDT {
-							elementList.emptyText.text = "Waiting for indexing to finish..."
-							elementList.setPaintBusy(true)
-						}
-						return
-					}
-
-					try {
-						val found = findKoreElements(indicator)
-						foundElementsCache.clear() // Clear before adding new results
-						foundElementsCache.addAll(found)
-						updateUIOnEDT {
-							groupAndSortAndDisplayElements() // Group, sort, and update list
-						}
-					} catch (e: IndexNotReadyException) {
-						LOGGER.warn("Index became unavailable during search.", e)
-						updateUIOnEDT { elementList.emptyText.text = "Indexing changed. Please refresh." }
-					} catch (e: Exception) {
-						LOGGER.error("Error finding Kore elements", e)
-						updateUIOnEDT { elementList.emptyText.text = "Error finding elements. See logs." }
-					} finally {
-						updateUIOnEDT { elementList.setPaintBusy(false) }
-					}
-				}
-			}.queue()
-		} else {
-			// Just re-group, re-sort and update the UI using the cached elements
-			groupAndSortAndDisplayElements()
+		private fun scheduleRefresh(event: PsiTreeChangeEvent) {
+			if (event.file !is KtFile) return
+			refreshQueue.queue(Update.create(this@KoreToolWindowContent) { refreshElements() })
 		}
 	}
 
-	private fun groupAndSortAndDisplayElements() {
-		val sortedElements = sortElements(foundElementsCache)
-		val listItems = mutableListOf<ListItem>()
-
-		if (currentGroupBy == GroupBy.FILE) {
-			var currentFileName = ""
-			sortedElements.forEach { element ->
-				if (element.fileName != currentFileName) {
-					currentFileName = element.fileName
-					listItems.add(GroupSeparatorItem(currentFileName))
-				}
-				listItems.add(KoreElementItem(element))
+	private inner class SortAction(private val target: KoreSortBy) :
+		AnAction(target.displayName), DumbAware, Toggleable {
+		override fun actionPerformed(e: AnActionEvent) {
+			// Re-picking the active criteria flips the direction, the usual IDE list behaviour.
+			sortOrder = when {
+				sortBy != target -> KoreSortOrder.ASCENDING
+				sortOrder == KoreSortOrder.ASCENDING -> KoreSortOrder.DESCENDING
+				else -> KoreSortOrder.ASCENDING
 			}
-		} else { // GroupBy.NONE
-			sortedElements.forEach { listItems.add(KoreElementItem(it)) }
+			sortBy = target
+			rebuildTree()
 		}
 
-		listModel.replaceAll(listItems)
-		elementList.emptyText.text = if (listItems.isEmpty()) "No Kore elements found." else ""
-		elementList.setPaintBusy(false)
-	}
-
-	private fun sortElements(elements: List<KoreElement>): List<KoreElement> {
-		val comparator: Comparator<KoreElement> = when {
-			// If grouping by file, file name is always the primary sort key
-			currentGroupBy == GroupBy.FILE -> compareBy<KoreElement> { it.fileName }
-				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Secondary sort by name
-
-			// Otherwise, sort by the selected criteria
-			currentSortBy == SortBy.NAME -> compareBy<KoreElement> { it.name }
-				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.fileName } // Secondary sort by file
-
-			currentSortBy == SortBy.FILE -> compareBy<KoreElement> { it.fileName }
-				.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Secondary sort by name
-
-			else -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name } // Default fallback
-		}
-
-		return if (currentSortOrder == SortOrder.ASCENDING) {
-			elements.sortedWith(comparator)
-		} else {
-			elements.sortedWith(comparator.reversed())
-		}
-	}
-
-
-	private fun updateUIOnEDT(action: () -> Unit) {
-		ApplicationManager.getApplication().invokeLater(action)
-	}
-
-	private fun findKoreElements(indicator: ProgressIndicator): List<KoreElement> {
-		val declarationSearchScope = GlobalSearchScope.allScope(project)
-
-		return ReadAction.nonBlocking<List<KoreElement>> {
-			indicator.checkCanceled()
-
-			val koreDeclarations = findKoreFunctionDeclarations(declarationSearchScope, indicator)
-			if (koreDeclarations.isEmpty()) {
-				LOGGER.warn("Could not find Kore function declarations via index search (using allScope). Ensure Kore library is a project dependency and indexed.")
-				return@nonBlocking emptyList()
+		override fun update(e: AnActionEvent) {
+			Toggleable.setSelected(e.presentation, sortBy == target)
+			e.presentation.icon = when {
+				sortBy != target -> null
+				sortOrder == KoreSortOrder.ASCENDING -> AllIcons.RunConfigurations.Scroll_up
+				else -> AllIcons.RunConfigurations.Scroll_down
 			}
+		}
 
-			// A LinkedHashSet dedupes in O(1) while preserving discovery order; the previous list scan was O(n²).
-			val elements = LinkedHashSet<KoreElement>()
-			val usageSearchScope = GlobalSearchScope.projectScope(project)
-			searchForReferences(koreDeclarations, usageSearchScope, indicator, elements)
-
-			elements.toList()
-		}.wrapProgress(indicator).executeSynchronously()
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 
-	private fun findKoreFunctionDeclarations(
-		scope: GlobalSearchScope,
-		indicator: ProgressIndicator,
-	): List<KtNamedFunction> {
-		val dataPackPackageFqn = KoreNames.KORE_DATAPACK_CLASS_ID.parent()
-		val dataPackDeclarations =
-			findDeclarationsByName(KoreNames.KORE_DATAPACK_NAME.asString(), dataPackPackageFqn, scope, indicator)
+	private inner class GroupAction(private val target: KoreGroupBy) :
+		AnAction(target.displayName), DumbAware, Toggleable {
+		override fun actionPerformed(e: AnActionEvent) {
+			if (groupBy == target) return
+			groupBy = target
+			rebuildTree()
+		}
 
-		val functionPackageFqn = KoreNames.KORE_FUNCTION_CLASS_ID.parent()
-		val functionDeclarations =
-			findDeclarationsByName(KoreNames.KORE_FUNCTION_NAME.asString(), functionPackageFqn, scope, indicator)
+		override fun update(e: AnActionEvent) = Toggleable.setSelected(e.presentation, groupBy == target)
 
-		return dataPackDeclarations + functionDeclarations
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 
-	private fun findDeclarationsByName(
-		name: String,
-		packageName: org.jetbrains.kotlin.name.FqName,
-		scope: GlobalSearchScope,
-		indicator: ProgressIndicator,
-	): List<KtNamedFunction> {
-		indicator.checkCanceled()
-		return KotlinFunctionShortNameIndex[name, project, scope]
-			.filter { declaration ->
-				declaration.containingKtFile.packageFqName == packageName
-			}
+	private inner class ExpandAllAction :
+		AnAction("Expand All", null, AllIcons.Actions.Expandall), DumbAware {
+		override fun actionPerformed(e: AnActionEvent) = TreeUtil.expandAll(tree)
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 
-	@OptIn(KaIdeApi::class)
-	private fun searchForReferences(
-		declarationsToSearch: List<KtNamedFunction>,
-		searchScope: GlobalSearchScope, // For usages
-		indicator: ProgressIndicator,
-		results: MutableSet<KoreElement>,
+	private inner class CollapseAllAction :
+		AnAction("Collapse All", null, AllIcons.Actions.Collapseall), DumbAware {
+		override fun actionPerformed(e: AnActionEvent) = TreeUtil.collapseAll(tree, 0)
+		override fun getActionUpdateThread() = ActionUpdateThread.EDT
+	}
+}
+
+private val DefaultMutableTreeNode.koreNode: KoreTreeNode? get() = userObject as? KoreTreeNode
+
+private class KoreTreeCellRenderer : ColoredTreeCellRenderer() {
+	override fun customizeCellRenderer(
+		tree: JTree,
+		value: Any?,
+		selected: Boolean,
+		expanded: Boolean,
+		leaf: Boolean,
+		row: Int,
+		hasFocus: Boolean,
 	) {
-		for (declaration in declarationsToSearch) {
-			indicator.checkCanceled()
-			val query = ReferencesSearch.search(declaration, searchScope)
-			query.forEach { psiReference ->
-				indicator.checkCanceled()
-				processReference(psiReference, results)
-			}
-		}
-	}
+		val node = (value as? DefaultMutableTreeNode)?.koreNode ?: return
 
-	@OptIn(KaIdeApi::class)
-	private fun processReference(psiReference: PsiReference, results: MutableSet<KoreElement>) {
-		val element = psiReference.element
-		val callExpression = PsiTreeUtil.getParentOfType(element, KtCallExpression::class.java, false)?.takeIf {
-			val callee = it.calleeExpression
-			callee != null && PsiTreeUtil.isAncestor(callee, element, false)
-		} ?: return
-
-		try {
-			analyze(callExpression) {
-				val functionCall = callExpression.resolveToCall()?.successfulFunctionCallOrNull() ?: return@analyze
-				val functionSymbol = functionCall.symbol
-				val callableId = functionSymbol.callableId?.asSingleFqName()
-				val functionName = functionSymbol.name
-
-				val containingFile = callExpression.containingKtFile
-				val virtualFile = containingFile.virtualFile ?: return@analyze
-				val fileName = virtualFile.name
-				val fileUrl = virtualFile.url
-				val offset = callExpression.textOffset
-				val document = PsiDocumentManager.getInstance(project).getDocument(containingFile)
-				val lineNumber = document?.getLineNumber(offset)?.plus(1) ?: -1 // 1-based line number
-
-				fun extractNameArgument(defaultName: String): String {
-					val nameArgument = callExpression.valueArguments.firstOrNull()?.getArgumentExpression()
-					if (nameArgument is KtStringTemplateExpression) {
-						return nameArgument.literalValue ?: nameArgument.text.take(50).trim('"')
-					} else if (nameArgument != null) {
-						val constValue = nameArgument.evaluate()?.render()?.trim('"')
-						return constValue?.takeIf { it != "null" } ?: nameArgument.text.take(50)
-					}
-					return defaultName
-				}
-
-				val kind = when (callableId) {
-					KoreNames.KORE_DATAPACK_CLASS_ID if functionName == KoreNames.KORE_DATAPACK_NAME -> KoreElementKind.DATA_PACK
-					KoreNames.KORE_FUNCTION_CLASS_ID if functionName == KoreNames.KORE_FUNCTION_NAME -> KoreElementKind.FUNCTION
-					else -> return@analyze
-				}
-
-				val elementName = when (kind) {
-					KoreElementKind.DATA_PACK -> extractNameArgument("datapack:${fileName.substringBeforeLast('.')}")
-					KoreElementKind.FUNCTION -> extractNameArgument("unknown_function")
-				}
-
-				results += KoreElement(kind, elementName, fileUrl, fileName, offset, lineNumber)
-			}
-		} catch (e: Exception) {
-			if (e is ProcessCanceledException) throw e
-			LOGGER.warn("Error analyzing potential Kore call: ${callExpression.text}", e)
-		}
-	}
-
-	// Action to toggle sort criteria and order
-	private inner class ToggleSortAction(
-		text: String,
-		private val sortBy: SortBy,
-	) : AnAction(text), DumbAware {
-		override fun actionPerformed(e: AnActionEvent) {
-			setSortCriteria(sortBy)
-		}
-
-		override fun update(e: AnActionEvent) {
-			super.update(e)
-			val presentation = e.presentation
-			presentation.icon = if (currentSortBy == sortBy) {
-				if (currentSortOrder == SortOrder.ASCENDING) AllIcons.RunConfigurations.Scroll_up
-				else AllIcons.RunConfigurations.Scroll_down
-			} else {
-				null // No icon if not the active sort criteria
-			}
-			// Indicate active even without icon change for clarity
-			Toggleable.setSelected(e.presentation, currentSortBy == sortBy)
-		}
-
-		override fun getActionUpdateThread() = ActionUpdateThread.EDT
-	}
-
-	// Action to set group criteria
-	private inner class GroupAction(
-		text: String,
-		private val groupBy: GroupBy,
-	) : AnAction(text), DumbAware, Toggleable {
-		override fun actionPerformed(e: AnActionEvent) {
-			setGroupCriteria(groupBy)
-		}
-
-		override fun update(e: AnActionEvent) {
-			super.update(e)
-			Toggleable.setSelected(e.presentation, currentGroupBy == groupBy)
-		}
-
-		override fun getActionUpdateThread() = ActionUpdateThread.EDT
-	}
-}
-
-// Helper extension to get literal value safely from a simple string template
-private val KtStringTemplateExpression.literalValue: String?
-	get() {
-		if (entries.isNotEmpty()) return null
-		return text?.removeSurrounding("\"\"\"")?.removeSurrounding("\"")
-	}
-
-// Custom Cell Renderer to handle Kore Elements and Group Separators
-private class KoreElementCellRenderer : ListCellRenderer<ListItem> {
-	private val elementRenderer = KoreElementPanelRenderer()
-	private val separatorRenderer = GroupSeparatorRenderer()
-	private val emptyLabel = JLabel("").apply { isOpaque = true }
-
-	override fun getListCellRendererComponent(
-		list: JList<out ListItem>?,
-		value: ListItem?,
-		index: Int,
-		isSelected: Boolean,
-		cellHasFocus: Boolean,
-	) = when (value) {
-		is KoreElementItem -> elementRenderer.render(list, value.element, isSelected)
-		is GroupSeparatorItem -> separatorRenderer.render(list, value) // Separators not selectable
-		null -> emptyLabel.apply { // Should not happen with CollectionListModel, but handle defensively
-			background = list?.background ?: JBColor.PanelBackground
-			foreground = list?.foreground ?: JBColor.foreground()
-		}
-	}
-}
-
-// Panel for rendering KoreElement. Components are built once and mutated per cell, as a JList repaints
-// every visible row on each scroll/selection tick and allocating a panel per row there is pure garbage.
-private class KoreElementPanelRenderer {
-	private val nameLabel = JLabel().apply { isOpaque = false }
-	private val locationLabel = JLabel().apply {
-		isOpaque = false
-		horizontalAlignment = SwingConstants.RIGHT
-	}
-	private val panel = JPanel(BorderLayout(JBUI.scale(5), 0)).apply {
-		accessibleContext.accessibleName = "Kore Element Cell"
-		border = JBUI.Borders.empty(2, 5)
-		isOpaque = true
-		add(nameLabel, BorderLayout.CENTER)
-		add(locationLabel, BorderLayout.EAST)
-	}
-
-	fun render(list: JList<*>?, value: KoreElement, isSelected: Boolean): Component {
-		val foreground = (if (isSelected) list?.selectionForeground else list?.foreground) ?: JBColor.WHITE
-		panel.background = if (isSelected) list?.selectionBackground else list?.background
-		panel.toolTipText = value.presentablePath
-
-		nameLabel.text = value.name
-		nameLabel.icon = value.kind.icon
-		nameLabel.foreground = foreground
-
-		locationLabel.text = "${value.fileName}:${value.lineNumber}"
-		// Slightly dimmed foreground for location
-		locationLabel.foreground = if (isSelected) foreground.darker() else JBColor.GRAY
-
-		return panel
-	}
-}
-
-// Renderer for GroupSeparatorItem
-private class GroupSeparatorRenderer {
-	private val separator = GroupHeaderSeparator(JBUI.emptyInsets())
-
-	init {
-		separator.border = JBUI.Borders.empty(3, 5) // Adjust padding
-		separator.setCaptionCentered(false)
-	}
-
-	fun render(list: JList<*>?, value: GroupSeparatorItem): Component {
-		separator.caption = value.name
-		separator.background = list?.background ?: JBColor.PanelBackground // Match list background
-		separator.foreground = list?.foreground ?: JBColor.foreground() // Match list foreground
-		return separator
+		icon = node.icon
+		append(node.label)
+		node.secondaryText?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
+		toolTipText = node.element?.let { "${it.outputPath} - ${it.presentablePath}" }
 	}
 }
