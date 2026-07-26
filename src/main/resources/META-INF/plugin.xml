@@ -31,11 +31,8 @@
                 language="kotlin"
                 implementationClass="io.github.ayfri.kore.koreassistant.gutter.FunctionGutterProvider"/>
 
-        <toolWindow
-                id="Kore Elements"
-                anchor="right"
-                factoryClass="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowFactory"
-                icon="/images/kore-white.svg"/>
+        <postStartupActivity
+                implementation="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowRegistrar"/>
 
         <defaultLiveTemplates file="/liveTemplates/Kore.xml"/>
 

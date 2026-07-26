@@ -9,6 +9,8 @@
 
 ### Fixed
 
+- The "Kore Elements" tool window no longer stays missing on Kore projects: it now appears as soon as the build system
+  finishes importing Kore, instead of only after an IDE restart.
 - Removed a log line written for every resolved `dataPack`/`function` call, which was slowing down the editor on files
   with many such calls.
 
