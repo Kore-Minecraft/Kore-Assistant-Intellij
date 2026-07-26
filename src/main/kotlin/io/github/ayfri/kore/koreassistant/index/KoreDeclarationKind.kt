@@ -1,12 +1,19 @@
 package io.github.ayfri.kore.koreassistant.index
 
+import com.intellij.icons.AllIcons
+import io.github.ayfri.kore.koreassistant.KoreIcons
+import javax.swing.Icon
+
+const val FUNCTION_RESOURCE_FOLDER = "function"
+
 /**
  * One row per Kore DSL builder that declares a datapack resource, keyed by the builder's short name
  * (the callee identifier the indexer sees, e.g. `function` in `function("x") { }`). Purely syntactic -
  * matching a name here does not mean the call actually resolves to Kore, that check happens at query time.
  *
  * [resourceFolder] mirrors the `Generator(resourceFolder)` constructor argument in Kore, i.e. the folder
- * under `data/<namespace>/` the resource is written to. Sourced from
+ * under `data/<namespace>/` the resource is written to. It is `null` for [DATA_PACK], which is not a
+ * resource but the container every other declaration is grouped under. Sourced from
  * `kore/src/commonMain/kotlin/io/github/ayfri/kore/DataPack.kt` (`registerGenerator<T>()` properties) and
  * the builder extension functions in each feature package; regenerate on every Kore MC-version bump.
  *
@@ -21,7 +28,7 @@ package io.github.ayfri.kore.koreassistant.index
  * confidently without also checking the enclosing container, which needs richer context than a flat
  * builder-name lookup gives.
  */
-enum class KoreDeclarationKind(val builderName: String, val resourceFolder: String) {
+enum class KoreDeclarationKind(val builderName: String, val resourceFolder: String?) {
 	ADVANCEMENT("advancement", "advancement"),
 	BANNER_PATTERN("bannerPattern", "banner_pattern"),
 	BIOME("biome", "worldgen/biome"),
@@ -54,6 +61,7 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	CRAFTING_SPECIAL_SHIELD_DECORATION("craftingSpecialShieldDecoration", "recipe"),
 	CRAFTING_TRANSMUTE("craftingTransmute", "recipe"),
 	DAMAGE_TYPE("damageType", "damage_type"),
+	DATA_PACK("dataPack", null),
 	DENSITY_FUNCTION("densityFunction", "worldgen/density_function"),
 	DESERT_PYRAMID("desertPyramid", "worldgen/structure"),
 	DIMENSION("dimension", "dimension"),
@@ -112,6 +120,17 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	WORLD_PRESET("worldPreset", "worldgen/world_preset"),
 	ZOMBIE_NAUTILUS_VARIANT("zombieNautilusVariant", "zombie_nautilus_variant"),
 	;
+
+	/** The function family writes `.mcfunction` under an extra `<directory>` instead of `<folder>/<name>.json`. */
+	val isFunction get() = resourceFolder == FUNCTION_RESOURCE_FOLDER
+
+	// Resolved lazily so the indexer, which only ever reads names and folders, never forces icon loading.
+	val icon: Icon
+		get() = when {
+			this == DATA_PACK -> KoreIcons.KORE
+			isFunction -> KoreIcons.FUNCTION
+			else -> AllIcons.FileTypes.Json
+		}
 
 	companion object {
 		private val byBuilderName = entries.associateBy(KoreDeclarationKind::builderName)

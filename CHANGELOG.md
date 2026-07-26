@@ -16,8 +16,8 @@
 
 ### Maintenance
 
-- Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), not yet
-  consumed by any feature.
+- Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), recording
+  the namespace, directory and enclosing datapack of each one.
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the
   duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
