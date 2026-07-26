@@ -11,6 +11,5 @@
         <context>
             <option name="KOTLIN" value="true"/>
         </context>
-        <variable name="variable" expression="groovyScript(&quot;io.github.ayfri.kore.functions.function&quot;)" defaultValue="" alwaysStopAt="false"/>
     </template>
 </templateSet>

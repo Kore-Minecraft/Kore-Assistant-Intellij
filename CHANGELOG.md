@@ -10,6 +10,7 @@
 
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
+- Removed a dead `groovyScript` variable from the `fn` live template that did nothing.
 
 ## [0.0.3] - 2026-07-22
 
