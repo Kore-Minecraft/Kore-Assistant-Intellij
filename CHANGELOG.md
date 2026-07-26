@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The "Kore Elements" tool window now hides itself entirely on non-Kore projects and has a proper tab name instead of an unnamed one.
+
 ### Fixed
 
 - Removed a log line written for every resolved `dataPack`/`function` call, which was slowing down the editor on files with many such calls.
@@ -11,6 +15,7 @@
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
 - Removed a dead `groovyScript` variable from the `fn` live template that did nothing.
+- Added `KoreLibraryService` to detect Kore projects and resolve the Kore/Minecraft version pair, shared by future features.
 
 ## [0.0.3] - 2026-07-22
 
