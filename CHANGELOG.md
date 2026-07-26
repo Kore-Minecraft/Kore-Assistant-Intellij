@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed a log line written for every resolved `dataPack`/`function` call, which was slowing down the editor on files with many such calls.
+
+### Maintenance
+
+- Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the duplicated resolution logic.
+- Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
+
 ## [0.0.3] - 2026-07-22
 
 ### Changed
