@@ -12,6 +12,7 @@
 
 ### Maintenance
 
+- Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), not yet consumed by any feature.
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the duplicated resolution logic.
 - Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
 - Removed a dead `groovyScript` variable from the `fn` live template that did nothing.

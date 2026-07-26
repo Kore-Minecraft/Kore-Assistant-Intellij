@@ -38,6 +38,8 @@
                 icon="/images/kore-white.svg"/>
 
         <defaultLiveTemplates file="/liveTemplates/Kore.xml"/>
+
+        <fileBasedIndex implementation="io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex"/>
     </extensions>
 
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
