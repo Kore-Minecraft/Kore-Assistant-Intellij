@@ -42,6 +42,8 @@
   registries read from the user's own Kore jar), neither consumed by a user-facing feature yet.
 - Added tests covering the index, the Kore-resolution filter, the output tree, runtime-built names, the datapack
   layouts, and what each row kind copies and hovers.
+- Declared the tool window through the `com.intellij.toolWindow` extension point and reduced `KoreToolWindowRegistrar`
+  to toggling its availability, dropping the override-only `ToolWindowManager` call the Plugin Verifier rejected.
 
 ## [0.0.3] - 2026-07-22
 

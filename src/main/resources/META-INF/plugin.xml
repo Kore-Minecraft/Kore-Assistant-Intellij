@@ -31,6 +31,14 @@
                 language="kotlin"
                 implementationClass="io.github.ayfri.kore.koreassistant.gutter.FunctionGutterProvider"/>
 
+        <!-- Registered here rather than programmatically: the manager's builder API is override-only.
+             KoreToolWindowRegistrar only flips its availability once it knows whether this is a Kore project. -->
+        <toolWindow
+                id="Kore Elements"
+                anchor="right"
+                icon="/images/kore-white.svg"
+                factoryClass="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowFactory"/>
+
         <postStartupActivity
                 implementation="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowRegistrar"/>
 
