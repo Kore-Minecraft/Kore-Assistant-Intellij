@@ -19,6 +19,8 @@ data class KoreElement(
 	val namespace: String,
 	val dataPackName: String,
 	val directory: String?,
+	/** The name (or namespace, or directory) is built at runtime, so what is shown is a template, not the final path. */
+	val isDynamic: Boolean,
 	val fileUrl: String,
 	val fileName: String,
 	val offset: Int,

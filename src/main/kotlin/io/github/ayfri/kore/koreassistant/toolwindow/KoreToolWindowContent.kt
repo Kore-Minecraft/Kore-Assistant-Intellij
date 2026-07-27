@@ -294,10 +294,15 @@ private class KoreTreeCellRenderer : ColoredTreeCellRenderer() {
 		hasFocus: Boolean,
 	) {
 		val node = (value as? DefaultMutableTreeNode)?.koreNode ?: return
+		val element = node.element
+		val dynamic = element?.isDynamic == true
 
 		icon = node.icon
-		append(node.label)
+		// A runtime-built name is a template standing for every value the loop produces, hence the italics.
+		append(node.label, if (dynamic) SimpleTextAttributes.REGULAR_ITALIC_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES)
 		node.secondaryText?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
-		toolTipText = node.element?.let { "${it.outputPath} - ${it.presentablePath}" }
+		toolTipText = element?.let {
+			"${it.outputPath}${if (dynamic) " (built at runtime)" else ""} - ${it.presentablePath}"
+		}
 	}
 }

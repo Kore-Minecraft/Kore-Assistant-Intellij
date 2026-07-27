@@ -15,6 +15,8 @@ import com.intellij.psi.util.PsiTreeUtil
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationData
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.index.koreDeclarationData
+import io.github.ayfri.kore.koreassistant.psi.ResolvingPropertyResolver
 import io.github.ayfri.kore.koreassistant.psi.calleeName
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -26,6 +28,7 @@ import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtTypeReference
 
 private const val KORE_PACKAGE_PREFIX = "io.github.ayfri.kore."
 private const val DATA_PACK_RECEIVER_NAME = "DataPack"
@@ -81,7 +84,9 @@ internal data object KoreElementFinder {
 				for (declaration in declarations) {
 					val call = ktFile.callExpressionAt(declaration) ?: continue
 					if (!isKoreCall(call)) continue
-					confirmed += ConfirmedDeclaration(declaration, file, document, call)
+					// Re-read the call now that references resolve: the indexer could not follow a constant out of its file.
+					val data = call.koreDeclarationData(declaration.kind, ResolvingPropertyResolver) ?: continue
+					confirmed += ConfirmedDeclaration(data, file, document, call)
 				}
 			}
 		} catch (e: Exception) {
@@ -178,6 +183,7 @@ private class ConfirmedDeclaration(
 			namespace = data.namespace ?: dataPack,
 			dataPackName = dataPack,
 			directory = data.directory,
+			isDynamic = data.isDynamic,
 			fileUrl = file.url,
 			fileName = file.name,
 			offset = data.offset,
@@ -193,8 +199,17 @@ private fun KtFile.callExpressionAt(declaration: KoreDeclarationData): KtCallExp
 	return call.takeIf { it.calleeName() == declaration.kind.builderName }
 }
 
-// Matches both `fun DataPack.x()` and the fully qualified spelling, without paying for resolution per candidate.
-private fun KtNamedFunction.isDataPackExtension() =
-	receiverTypeReference?.text?.substringAfterLast('.') == DATA_PACK_RECEIVER_NAME
+/**
+ * Every way a function can take the datapack it fills: as a receiver (what Kore recommends), as a plain
+ * parameter, or as a Kotlin 2.4 context parameter, which `oop` and `helpers` use throughout. Matched on the
+ * type's spelling, fully qualified or not, so no candidate has to be resolved.
+ */
+private fun KtNamedFunction.isDataPackExtension(): Boolean {
+	if (receiverTypeReference.namesDataPack()) return true
+	if (valueParameters.any { it.typeReference.namesDataPack() }) return true
+	return contextReceivers.any { it.typeReference().namesDataPack() }
+}
+
+private fun KtTypeReference?.namesDataPack() = this?.typeElement?.text?.substringAfterLast('.') == DATA_PACK_RECEIVER_NAME
 
 private fun Document.lineNumberAt(offset: Int) = if (offset in 0..textLength) getLineNumber(offset) + 1 else null
