@@ -11,15 +11,17 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
-import org.jetbrains.kotlin.psi.KtEscapeStringTemplateEntry
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtExpression
-import org.jetbrains.kotlin.psi.KtLiteralStringTemplateEntry
+import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
-import org.jetbrains.kotlin.psi.KtStringTemplateEntryWithExpression
-import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 
 private const val DATA_PACK_BUILDER_NAME = "dataPack"
 private const val NAMESPACE_PROPERTY_NAME = "namespace"
+
+// The function family names its first parameter `name`, every other generator builder calls it `fileName`.
+private const val NAME_PARAMETER_NAME = "name"
+private const val FILE_NAME_PARAMETER_NAME = "fileName"
 
 /**
  * Cheap syntactic gate: `element` is the callee identifier of a call named [shortName].
@@ -45,67 +47,64 @@ fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName, shortName: Name
 /** The callee's short name, or `null` when the callee is not a plain identifier. Purely syntactic. */
 fun KtCallExpression.calleeName(): String? = (calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
 
-/**
- * The content of a non-interpolated string literal, or `null` for anything else. Purely syntactic, safe for indexers.
- *
- * Note a plain `"foo"` already holds one [KtLiteralStringTemplateEntry], so emptiness of `entries` means the
- * empty string, not "no interpolation" - only a [KtStringTemplateEntryWithExpression] makes a template dynamic.
- */
-fun KtExpression.constantStringValue(): String? {
-	val template = this as? KtStringTemplateExpression ?: return null
-	if (template.entries.any { it is KtStringTemplateEntryWithExpression }) return null
-
-	return template.entries.joinToString("") { entry ->
-		if (entry is KtEscapeStringTemplateEntry) entry.unescapedValue else entry.text
-	}
-}
-
-/**
- * The first value argument's constant string content, or `null` if it is missing, interpolated, or not a
- * string at all. Purely syntactic - no resolution, safe for indexers.
- */
-fun KtCallExpression.firstStringLiteralArgument(): String? =
-	valueArguments.firstOrNull()?.getArgumentExpression()?.constantStringValue()
-
-/** Constant string content of the argument passed by name as [parameterName]. */
-fun KtCallExpression.namedStringArgument(parameterName: String): String? = valueArguments
+/** The argument passed by name as [parameterName], whatever expression it holds. */
+fun KtCallExpression.namedArgument(parameterName: String): KtExpression? = valueArguments
 	.firstOrNull { it.getArgumentName()?.asName?.asString() == parameterName }
 	?.getArgumentExpression()
-	?.constantStringValue()
 
-/** Constant string content of the [index]-th positional argument, named arguments and lambdas excluded. */
-fun KtCallExpression.positionalStringArgument(index: Int): String? = valueArguments
-	.filter { it.getArgumentName() == null }
+/** The [index]-th positional argument, named arguments and lambdas excluded - `valueArguments` holds those too. */
+fun KtCallExpression.positionalArgument(index: Int): KtExpression? = valueArguments
+	.filter { it.getArgumentName() == null && it.getArgumentExpression() !is KtLambdaExpression }
 	.getOrNull(index)
 	?.getArgumentExpression()
-	?.constantStringValue()
+
+/**
+ * The argument holding the declaration's name, by parameter name first so a reordered call still reads right,
+ * then by position. Kore spells that parameter `name` in the function family and `fileName` everywhere else.
+ */
+fun KtCallExpression.declarationNameArgument(): KtExpression? = namedArgument(NAME_PARAMETER_NAME)
+	?: namedArgument(FILE_NAME_PARAMETER_NAME)
+	?: positionalArgument(0)
 
 /**
  * `namespace = "x"` assigned at the top level of the trailing lambda - how every generator outside the
  * function family sets its namespace (`Generator.namespace` is a `var`, not a builder parameter).
  */
-fun KtCallExpression.namespaceAssignmentInBlock(): String? {
+fun KtCallExpression.namespaceAssignmentInBlock(resolver: KorePropertyResolver): KoreStringValue? {
 	val body = lambdaArguments.lastOrNull()?.getLambdaExpression()?.bodyExpression ?: return null
 	return body.statements.asSequence()
 		.filterIsInstance<KtBinaryExpression>()
 		.filter { it.operationToken == KtTokens.EQ }
 		.filter { (it.left as? KtNameReferenceExpression)?.getReferencedName() == NAMESPACE_PROPERTY_NAME }
-		.mapNotNull { it.right?.constantStringValue() }
+		.mapNotNull { it.right?.koreStringValue(resolver) }
 		.lastOrNull()
 }
 
 /**
- * Walks up from [this] call looking for an enclosing `dataPack("name") { }` call in the same file and
- * returns its name literal. `null` if none is found (common: functions declared in a `DataPack.xxx()`
- * extension in a separate file) - callers should fall back to "any namespace" matching in that case.
+ * Walks up from [this] call looking for an enclosing `dataPack(name) { }` in the same file and returns its
+ * name. `null` if none is found (common: functions declared in a `DataPack.xxx()` extension in a separate
+ * file) - callers should fall back to "any namespace" matching in that case.
  */
-fun KtCallExpression.enclosingDataPackName(): String? {
+fun KtCallExpression.enclosingDataPackName(resolver: KorePropertyResolver): KoreStringValue? {
 	var current: PsiElement? = parent
 	while (current != null) {
-		if (current is KtCallExpression && current.calleeName() == DATA_PACK_BUILDER_NAME) {
-			return current.firstStringLiteralArgument()
-		}
+		current.enclosingDataPackCall()?.let { return it.declarationNameArgument()?.koreStringValue(resolver) }
 		current = current.parent
 	}
 	return null
 }
+
+/**
+ * The `dataPack(...)` call [this] element puts in scope: itself when it is the builder, or - for the scope
+ * function layouts `dataPack("x").apply { }` and `with(dataPack("x")) { }` - the receiver/argument it is
+ * applied to, which is a sibling of the block rather than one of its ancestors.
+ */
+private fun PsiElement.enclosingDataPackCall(): KtCallExpression? = when (this) {
+	is KtCallExpression -> takeIf { it.isDataPackCall() }
+		?: valueArguments.firstNotNullOfOrNull { (it.getArgumentExpression() as? KtCallExpression)?.takeIf(KtCallExpression::isDataPackCall) }
+
+	is KtDotQualifiedExpression -> (receiverExpression as? KtCallExpression)?.takeIf(KtCallExpression::isDataPackCall)
+	else -> null
+}
+
+private fun KtCallExpression.isDataPackCall() = calleeName() == DATA_PACK_BUILDER_NAME

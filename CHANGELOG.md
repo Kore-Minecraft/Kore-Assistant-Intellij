@@ -5,41 +5,35 @@
 ### Added
 
 - The "Kore Elements" tool window now lists every kind of Kore declaration (advancements, loot tables, recipes,
-  predicates, worldgen, ...) instead of only `dataPack` and `function`, as a tree mirroring the generated datapack
-  layout.
-- The tool window can group by output structure, source file or a flat list, and gained a filter field, speed search,
-  Expand All / Collapse All, and Enter to open the selected element.
+  predicates, worldgen, ...) as a tree mirroring the generated datapack layout, groupable by output structure, source
+  file or flat list, with a filter field, speed search, Expand All / Collapse All and Enter to open an element.
 - Hovering an element shows the path Kore will generate it to, e.g. `data/mypack/advancement/root.json`.
-- Resources declared in `fun DataPack.xxx()` extensions, the layout Kore recommends, appear under the datapack that
-  calls them.
+- Declarations are found whatever their name is built from: a constant declared in another file (`dataPack(NAMESPACE)`),
+  a concatenation, or an interpolation like `lootTable("blocks/$leafId")` - listed as its template, in italics, since
+  the final name is only known at runtime.
+- Resources are attached to their datapack across every layout Kore allows: `fun DataPack.xxx()` extensions, helpers
+  taking the datapack as a parameter or context parameter, and `dataPack("x").apply { }`.
 
 ### Changed
 
-- The "Kore Elements" tool window now hides itself entirely on non-Kore projects and has a proper tab name instead of an
-  unnamed one.
-- The tool window refreshes itself as you edit Kotlin files instead of only when the Refresh button is pressed.
+- The tool window hides itself on non-Kore projects, has a proper tab name, and refreshes as you edit Kotlin files.
 
 ### Fixed
 
-- The "Kore Elements" tool window no longer stays missing on Kore projects: it now appears as soon as the build system
-  finishes importing Kore, instead of only after an IDE restart.
-- Removed a log line written for every resolved `dataPack`/`function` call, which was slowing down the editor on files
-  with many such calls.
+- The tool window now appears as soon as the build system finishes importing Kore, instead of only after an IDE restart.
+- Removed a log line written for every resolved `dataPack`/`function` call, which slowed the editor down on files with
+  many of them.
 
 ### Maintenance
 
-- Added a syntactic file-based index of Kore declaration calls (`function`, `advancement`, `lootTable`, ...), recording
-  the namespace, directory and enclosing datapack of each one, backing the tool window in place of the old
-  `ReferencesSearch` scan.
-- Added the first tests, covering the declaration index, the Kore-resolution filter and the output tree.
-- Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base, dropping the
-  duplicated resolution logic.
-- Renamed `DatapackGutterProvider.kt` to `DataPackGutterProvider.kt` to match its class name.
-- Removed a dead `groovyScript` variable from the `fn` live template that did nothing.
-- Added `KoreLibraryService` to detect Kore projects and resolve the Kore/Minecraft version pair, shared by future
-  features.
-- Added `KoreRegistryService` to resolve vanilla id registries (items, blocks, gamerules, ...) from the user's own
-  resolved Kore jar, not yet consumed by any feature.
+- Backed the tool window with a syntactic file-based index of declaration calls instead of the old `ReferencesSearch`
+  scan; the index only locates calls, the tool window re-reads each one once resolution is available.
+- Added `psi/KoreStringValue.kt`, the shared constant-folding string reader both of them read names with.
+- Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base.
+- Added `KoreLibraryService` (Kore project detection, Kore/Minecraft version pair) and `KoreRegistryService` (vanilla id
+  registries read from the user's own Kore jar), neither consumed by a user-facing feature yet.
+- Added tests covering the index, the Kore-resolution filter, the output tree, runtime-built names and the datapack
+  layouts.
 
 ## [0.0.3] - 2026-07-22
 
