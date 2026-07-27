@@ -26,6 +26,11 @@ private val MAIN_KT = """
 
 			predicate(fileName = PREFIX + "concatenated") { }
 
+			dialogs {
+				notice("welcome", "Hello") { }
+				serverLinks("links") { }
+			}
+
 			listOf("oak", "birch").forEach { leaf ->
 				lootTable("blocks/${'$'}leaf") {
 					namespace = "minecraft"
@@ -55,6 +60,8 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 				"root",
 				"generated/concatenated",
 				"blocks/\$leaf",
+				"welcome",
+				"links",
 			),
 			indexed.keys,
 		)
@@ -106,6 +113,15 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 
 		assertEquals(KoreDeclarationKind.PREDICATE, concatenated.kind)
 		assertFalse("A fully resolved name must not be marked dynamic", concatenated.isDynamic)
+	}
+
+	/** Dialog builders sit inside a `dialogs { }` container rather than directly under `dataPack { }`. */
+	fun testIndexesDialogsDeclaredInsideTheirContainer() {
+		val indexed = index()
+
+		assertEquals(KoreDeclarationKind.NOTICE, indexed.getValue("welcome").kind)
+		assertEquals(KoreDeclarationKind.SERVER_LINKS, indexed.getValue("links").kind)
+		assertEquals("rotten-flesh-to-leather", indexed.getValue("welcome").dataPackName)
 	}
 
 	fun testKeepsInterpolatedNamesAsTemplates() {

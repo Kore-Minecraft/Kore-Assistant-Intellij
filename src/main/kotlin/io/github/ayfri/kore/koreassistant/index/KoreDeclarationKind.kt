@@ -23,10 +23,12 @@ const val FUNCTION_RESOURCE_FOLDER = "function"
  * - `Tag` overrides `getPathFromDataDir` to nest under `tags/<type>/<file>.json` - not representable as a
  *   flat resourceFolder, so tags are intentionally **not** in this table yet (needs its own path formula).
  *
- * Also not yet covered: the `dialogs { }` / `testEnvironments { }` / `testInstances { }` container
- * sub-builders (`notice`, `allOf`, `gameRules`, ...) - their names are too generic/collision-prone to index
- * confidently without also checking the enclosing container, which needs richer context than a flat
- * builder-name lookup gives.
+ * The `dialogs { }` sub-builders each get an entry: one `data/<ns>/dialog/<file>.json` apiece, and no other
+ * Kore builder shares their names.
+ *
+ * The `testEnvironments { }` sub-builders (`allOf`, `gameRules`, `weather`, ...) get none: one of them is named
+ * `function`, which a flat builder-name lookup cannot tell apart from the `function(...)` builder. The
+ * `testEnvironment` / `testInstance` builders they delegate to are entries of their own.
  */
 enum class KoreDeclarationKind(val builderName: String, val resourceFolder: String?) {
 	ADVANCEMENT("advancement", "advancement"),
@@ -44,6 +46,7 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	CHICKEN_VARIANT("chickenVariant", "chicken_variant"),
 	CONFIGURED_CARVER("configuredCarver", "worldgen/configured_carver"),
 	CONFIGURED_FEATURE("configuredFeature", "worldgen/configured_feature"),
+	CONFIRMATION("confirmation", "dialog"),
 	COW_SOUND_VARIANT("cowSoundVariant", "cow_sound_variant"),
 	COW_VARIANT("cowVariant", "cow_variant"),
 	CRAFTING_DECORATED_POT("craftingDecoratedPot", "recipe"),
@@ -64,6 +67,7 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	DATA_PACK("dataPack", null),
 	DENSITY_FUNCTION("densityFunction", "worldgen/density_function"),
 	DESERT_PYRAMID("desertPyramid", "worldgen/structure"),
+	DIALOG_LIST("dialogList", "dialog"),
 	DIMENSION("dimension", "dimension"),
 	DIMENSION_TYPE("dimensionType", "dimension_type"),
 	ENCHANTMENT("enchantment", "enchantment"),
@@ -82,9 +86,11 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	LOAD("load", "function"),
 	LOOT_TABLE("lootTable", "loot_table"),
 	MINESHAFT("mineshaft", "worldgen/structure"),
+	MULTI_ACTION("multiAction", "dialog"),
 	NETHER_FOSSIL("netherFossil", "worldgen/structure"),
 	NOISE("noise", "worldgen/noise"),
 	NOISE_SETTINGS("noiseSettings", "worldgen/noise_settings"),
+	NOTICE("notice", "dialog"),
 	OCEAN_MONUMENT("oceanMonument", "worldgen/structure"),
 	OCEAN_RUIN("oceanRuin", "worldgen/structure"),
 	PAINTING_VARIANT("paintingVariant", "painting_variant"),
@@ -94,6 +100,7 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	PREDICATE("predicate", "predicate"),
 	PROCESSOR_LIST("processorList", "worldgen/processor_list"),
 	RUINED_PORTAL("ruinedPortal", "worldgen/structure"),
+	SERVER_LINKS("serverLinks", "dialog"),
 	SHIP_WRECK("shipWreck", "worldgen/structure"),
 	SINGLE_ENCHANTMENT_PROVIDER("singleEnchantmentProvider", "trades"),
 	SMELTING("smelting", "recipe"),
@@ -123,6 +130,11 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 
 	/** The function family writes `.mcfunction` under an extra `<directory>` instead of `<folder>/<name>.json`. */
 	val isFunction get() = resourceFolder == FUNCTION_RESOURCE_FOLDER
+
+	/** `CRAFTING_SHAPED` -> `Crafting Shaped`, for the tooltip and the sort-by-kind grouping. */
+	val displayName by lazy {
+		name.split('_').joinToString(" ") { word -> word.lowercase().replaceFirstChar(Char::titlecase) }
+	}
 
 	// Resolved lazily so the indexer, which only ever reads names and folders, never forces icon loading.
 	val icon: Icon

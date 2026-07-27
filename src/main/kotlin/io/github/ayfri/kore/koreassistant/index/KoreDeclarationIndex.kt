@@ -54,7 +54,7 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 	override fun getValueExternalizer() = KoreDeclarationDataExternalizer
 
 	// Bump on ANY change to the indexer logic, KoreDeclarationKind, or KoreDeclarationDataExternalizer.
-	override fun getVersion() = 3
+	override fun getVersion() = 4
 
 	override fun getInputFilter() = DefaultFileTypeSpecificInputFilter(KotlinFileType.INSTANCE)
 
