@@ -14,7 +14,9 @@ enum class KoreGroupBy(val displayName: String) {
 
 enum class KoreSortBy(val displayName: String) {
 	NAME("Sort by Name"),
-	FILE("Sort by File"),
+	KIND("Sort by Kind"),
+	NAMESPACE("Sort by Namespace"),
+	DECLARATION("Sort by Declaration Order"),
 }
 
 enum class KoreSortOrder { ASCENDING, DESCENDING }
@@ -110,12 +112,19 @@ fun buildKoreTree(
 }
 
 private fun elementComparator(sortBy: KoreSortBy, sortOrder: KoreSortOrder): Comparator<KoreElement> {
-	val comparator = when (sortBy) {
-		KoreSortBy.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::name)
-			.thenBy(String.CASE_INSENSITIVE_ORDER, KoreElement::fileName)
+	val byName = compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::name)
+		.thenBy(String.CASE_INSENSITIVE_ORDER, KoreElement::fileName)
 
-		KoreSortBy.FILE -> compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::fileName)
-			.thenBy { it.lineNumber }
+	val comparator = when (sortBy) {
+		KoreSortBy.NAME -> byName
+
+		KoreSortBy.KIND -> compareBy<KoreElement, String>(String.CASE_INSENSITIVE_ORDER) { it.kind.displayName }.then(byName)
+
+		KoreSortBy.NAMESPACE -> compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::namespace).then(byName)
+
+		// Offset rather than line number, so two declarations on the same line keep their source order.
+		KoreSortBy.DECLARATION -> compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::fileName)
+			.thenBy { it.offset }
 	}
 
 	return if (sortOrder == KoreSortOrder.ASCENDING) comparator else comparator.reversed()

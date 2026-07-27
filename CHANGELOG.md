@@ -5,8 +5,9 @@
 ### Added
 
 - The "Kore Elements" tool window now lists every kind of Kore declaration (advancements, loot tables, recipes,
-  predicates, dialogs, worldgen, ...) as a tree mirroring the generated datapack layout, groupable by output structure, source
-  file or flat list, with a filter field, speed search, Expand All / Collapse All and Enter to open an element.
+  predicates, dialogs, worldgen, ...) as a tree mirroring the generated datapack layout, groupable by output structure,
+  source file or flat list, sortable by name, kind, namespace or declaration order, with a filter field, speed search,
+  Expand All / Collapse All and Enter to open an element.
 - Hovering an element shows the path Kore will generate it to, e.g. `data/mypack/advancement/root.json`.
 - Declarations are found whatever their name is built from: a constant declared in another file (`dataPack(NAMESPACE)`),
   a concatenation, or an interpolation like `lootTable("blocks/$leafId")` - listed as its template, in italics, since
