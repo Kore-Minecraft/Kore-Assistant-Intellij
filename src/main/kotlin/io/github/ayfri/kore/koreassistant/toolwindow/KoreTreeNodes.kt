@@ -22,41 +22,64 @@ enum class KoreSortBy(val displayName: String) {
 enum class KoreSortOrder { ASCENDING, DESCENDING }
 
 /**
- * User object of every tree row. Rendering only ever reads [label] / [icon] / [secondaryText], and only
- * [KoreElementNode] carries something to navigate to.
+ * User object of every tree row. Only [KoreElementNode] carries something to navigate to, but every row
+ * carries the [elements] under it, so grouping rows can answer the same hover and Copy questions a leaf does.
  */
 sealed interface KoreTreeNode {
 	val label: String
 	val icon: Icon
 	val secondaryText: String?
+	val elements: List<KoreElement>
+
+	/** What the row *is*, shown as the grey line under the hover's definition block. */
+	val nodeKind: String
 	val element: KoreElement? get() = null
 }
 
-data class KoreDataPackNode(override val label: String, private val count: Int) : KoreTreeNode {
+data class KoreDataPackNode(override val label: String, override val elements: List<KoreElement>) : KoreTreeNode {
 	override val icon get() = KoreDeclarationKind.DATA_PACK.icon
-	override val secondaryText get() = "$count element${if (count == 1) "" else "s"}"
+	override val secondaryText get() = elements.size.elementCount()
+	override val nodeKind get() = "Datapack"
 }
 
-data class KoreNamespaceNode(override val label: String) : KoreTreeNode {
+data class KoreNamespaceNode(
+	override val label: String,
+	val dataPackName: String,
+	override val elements: List<KoreElement>,
+) : KoreTreeNode {
 	override val icon get() = AllIcons.Nodes.Package
-	override val secondaryText: String? get() = null
+	override val secondaryText get() = elements.size.elementCount()
+	override val nodeKind get() = "Namespace"
 }
 
-data class KoreFolderNode(override val label: String, private val count: Int) : KoreTreeNode {
+data class KoreFolderNode(
+	override val label: String,
+	val namespace: String,
+	override val elements: List<KoreElement>,
+) : KoreTreeNode {
 	override val icon get() = AllIcons.Nodes.Folder
-	override val secondaryText get() = count.toString()
+	override val secondaryText get() = elements.size.toString()
+	override val nodeKind get() = "Resource Folder"
+
+	/** The output prefix every element under this folder shares. */
+	val outputPath get() = "data/$namespace/$label"
 }
 
-data class KoreFileNode(override val label: String, private val count: Int) : KoreTreeNode {
+data class KoreFileNode(override val label: String, override val elements: List<KoreElement>) : KoreTreeNode {
 	override val icon get() = AllIcons.FileTypes.Any_type
-	override val secondaryText get() = count.toString()
+	override val secondaryText get() = elements.size.toString()
+	override val nodeKind get() = "Source File"
 }
 
 data class KoreElementNode(override val element: KoreElement) : KoreTreeNode {
 	override val label get() = element.name
 	override val icon get() = element.kind.icon
 	override val secondaryText get() = "${element.fileName}:${element.lineNumber}"
+	override val elements get() = listOf(element)
+	override val nodeKind get() = element.kind.displayName
 }
+
+private fun Int.elementCount() = "$this element${if (this == 1) "" else "s"}"
 
 /** Text matched against the filter field, so filtering finds an element by name, namespace or output path. */
 fun KoreElement.matches(filter: String) = filter.isEmpty()
@@ -81,13 +104,13 @@ fun buildKoreTree(
 
 			for (dataPackName in dataPackNames) {
 				val own = resources.filter { it.dataPackName == dataPackName }
-				val dataPackNode = DefaultMutableTreeNode(KoreDataPackNode(dataPackName, own.size))
+				val dataPackNode = DefaultMutableTreeNode(KoreDataPackNode(dataPackName, own))
 
 				for ((namespace, inNamespace) in own.groupBy(KoreElement::namespace).toSortedMap()) {
-					val namespaceNode = DefaultMutableTreeNode(KoreNamespaceNode(namespace))
+					val namespaceNode = DefaultMutableTreeNode(KoreNamespaceNode(namespace, dataPackName, inNamespace))
 
 					for ((folder, inFolder) in inNamespace.groupBy { it.kind.resourceFolder.orEmpty() }.toSortedMap()) {
-						val folderNode = DefaultMutableTreeNode(KoreFolderNode(folder, inFolder.size))
+						val folderNode = DefaultMutableTreeNode(KoreFolderNode(folder, namespace, inFolder))
 						inFolder.forEach { folderNode.add(DefaultMutableTreeNode(KoreElementNode(it))) }
 						namespaceNode.add(folderNode)
 					}
@@ -100,7 +123,7 @@ fun buildKoreTree(
 		}
 
 		KoreGroupBy.FILE -> for ((fileName, inFile) in sorted.groupBy(KoreElement::fileName).toSortedMap()) {
-			val fileNode = DefaultMutableTreeNode(KoreFileNode(fileName, inFile.size))
+			val fileNode = DefaultMutableTreeNode(KoreFileNode(fileName, inFile))
 			inFile.forEach { fileNode.add(DefaultMutableTreeNode(KoreElementNode(it))) }
 			root.add(fileNode)
 		}

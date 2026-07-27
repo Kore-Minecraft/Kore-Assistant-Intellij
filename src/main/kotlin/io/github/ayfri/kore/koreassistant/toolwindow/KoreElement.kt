@@ -37,8 +37,44 @@ data class KoreElement(
 			else -> "data/$namespace/${kind.resourceFolder}/$name.json"
 		}
 
+	/** The `namespace:path` id used in-game and in other Kore calls. A datapack is a container, so it has none. */
+	val resourceLocation: String?
+		get() = when {
+			kind == KoreDeclarationKind.DATA_PACK -> null
+			kind.isFunction -> "$namespace:${directory.orEmpty().withTrailingSlash()}$name"
+			else -> "$namespace:$name"
+		}
+
+	/** The command that runs or grants this resource, for the kinds that have one. */
+	val command: String?
+		get() {
+			val location = resourceLocation ?: return null
+
+			return when {
+				kind.isFunction -> "/function $location"
+				else -> when (kind.resourceFolder) {
+					"advancement" -> "/advancement grant @s only $location"
+					"damage_type" -> "/damage @s 1 $location"
+					"dialog" -> "/dialog show @s $location"
+					"enchantment" -> "/enchant @s $location"
+					"item_modifier" -> "/item modify entity @s weapon.mainhand $location"
+					"loot_table" -> "/loot give @s loot $location"
+					"predicate" -> "/execute if predicate $location run say matched"
+					"recipe" -> "/recipe give @s $location"
+					"worldgen/configured_feature" -> "/place feature $location"
+					"worldgen/placed_feature" -> "/place feature $location"
+					"worldgen/structure" -> "/place structure $location"
+					"worldgen/template_pool" -> "/place template $location"
+					else -> null
+				}
+			}
+		}
+
 	// Only the tooltip needs it, so it is never computed for rows that are merely listed.
 	val presentablePath: String get() = FileUtil.toSystemDependentName(VfsUtilCore.urlToPath(fileUrl))
+
+	/** `File.kt:42`, the stack-trace spelling the IDE turns back into a link when pasted. */
+	val sourceLocation: String get() = if (lineNumber > 0) "$fileName:$lineNumber" else fileName
 }
 
 private fun String.withTrailingSlash() = if (isEmpty() || endsWith('/')) this else "$this/"

@@ -4,6 +4,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
@@ -20,6 +21,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.DoubleClickListener
+import com.intellij.ui.PopupHandler
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.TreeSpeedSearch
@@ -38,6 +40,7 @@ import javax.swing.JTree
 import javax.swing.event.DocumentEvent
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeModel
 import javax.swing.tree.TreeSelectionModel
 
 // Deep enough to show every namespace's folders without exploding a datapack with thousands of elements.
@@ -46,7 +49,7 @@ private const val REFRESH_MERGE_DELAY_MS = 300
 
 class KoreToolWindowContent(private val project: Project) : Disposable {
 	private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
-	private val tree = Tree(treeModel)
+	private val tree = KoreTree(treeModel)
 	private val filterField = SearchTextField(false)
 	val contentPanel = SimpleToolWindowPanel(true, true)
 
@@ -77,6 +80,13 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 		object : DoubleClickListener() {
 			override fun onDoubleClick(event: MouseEvent) = navigateToSelection()
 		}.installOn(tree)
+
+		// Selects the row under the cursor before showing the menu, so right-click acts on what was clicked.
+		PopupHandler.installFollowingSelectionTreePopup(
+			tree,
+			createKoreNodePopupGroup { navigateToSelection() },
+			ActionPlaces.TOOLWINDOW_POPUP,
+		)
 
 		object : AnAction(), DumbAware {
 			override fun actionPerformed(e: AnActionEvent) {
@@ -199,10 +209,11 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 		}
 	}
 
+	private fun selectedNode() = (tree.selectionPath?.lastPathComponent as? DefaultMutableTreeNode)?.koreNode
+
 	// Resolves the url lazily so a stale snapshot cannot leak a dead PSI reference.
 	private fun navigateToSelection(): Boolean {
-		val element = tree.selectionPath?.lastPathComponent
-			?.let { (it as? DefaultMutableTreeNode)?.koreNode?.element } ?: return false
+		val element = selectedNode()?.element ?: return false
 
 		val file = VirtualFileManager.getInstance().findFileByUrl(element.fileUrl)
 		if (file == null || !file.isValid) {
@@ -268,6 +279,22 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 		override fun getActionUpdateThread() = ActionUpdateThread.EDT
 	}
 
+	/**
+	 * Publishes the selected row into the action system. The lazily resolved `PSI_ELEMENT` is what lets the
+	 * platform's own Find Usages work on a tree of PSI-free DTOs.
+	 */
+	private inner class KoreTree(model: TreeModel) : Tree(model), UiDataProvider {
+		override fun uiDataSnapshot(sink: DataSink) {
+			val node = selectedNode()
+			sink[CommonDataKeys.PROJECT] = project
+			if (node == null) return
+
+			sink[KORE_NODE_KEY] = node
+			val element = node.element ?: return
+			sink.lazy(CommonDataKeys.PSI_ELEMENT) { runReadActionBlocking { element.findDeclaration(project) } }
+		}
+	}
+
 	private inner class ExpandAllAction :
 		AnAction("Expand All", null, AllIcons.Actions.Expandall), DumbAware {
 		override fun actionPerformed(e: AnActionEvent) = TreeUtil.expandAll(tree)
@@ -294,15 +321,12 @@ private class KoreTreeCellRenderer : ColoredTreeCellRenderer() {
 		hasFocus: Boolean,
 	) {
 		val node = (value as? DefaultMutableTreeNode)?.koreNode ?: return
-		val element = node.element
-		val dynamic = element?.isDynamic == true
+		val dynamic = node.element?.isDynamic == true
 
 		icon = node.icon
 		// A runtime-built name is a template standing for every value the loop produces, hence the italics.
 		append(node.label, if (dynamic) SimpleTextAttributes.REGULAR_ITALIC_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES)
 		node.secondaryText?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
-		toolTipText = element?.let {
-			"${it.outputPath}${if (dynamic) " (built at runtime)" else ""} - ${it.presentablePath}"
-		}
+		toolTipText = node.tooltip()
 	}
 }

@@ -8,7 +8,14 @@
   predicates, dialogs, worldgen, ...) as a tree mirroring the generated datapack layout, groupable by output structure,
   source file or flat list, sortable by name, kind, namespace or declaration order, with a filter field, speed search,
   Expand All / Collapse All and Enter to open an element.
-- Hovering an element shows the path Kore will generate it to, e.g. `data/mypack/advancement/root.json`.
+- Hovering any row shows a card laid out like the IDE's documentation popup: the declaration in monospace, then its
+  resource location, generated path (e.g. `data/mypack/advancement/root.json`), the command that runs it, its datapack,
+  namespace and source location. Datapack, namespace, folder and file rows summarise their whole subtree instead.
+- Right-clicking any row offers Copy, which opens a searchable list previewing each value in grey. Elements copy their
+  resource location (`mypack:foo`), command (`/function mypack:foo`), output path, name, source location or absolute
+  path; datapack, namespace, folder and file rows copy their own name and path, plus every resource location or output
+  path underneath them at once.
+- Right-clicking an element also offers Jump to Source and Find Usages.
 - Declarations are found whatever their name is built from: a constant declared in another file (`dataPack(NAMESPACE)`),
   a concatenation, or an interpolation like `lootTable("blocks/$leafId")` - listed as its template, in italics, since
   the final name is only known at runtime.
