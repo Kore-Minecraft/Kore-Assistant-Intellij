@@ -40,8 +40,8 @@
 - Merged `DataPackGutterProvider` and `FunctionGutterProvider` onto a shared `KoreCallGutterProvider` base.
 - Added `KoreLibraryService` (Kore project detection, Kore/Minecraft version pair) and `KoreRegistryService` (vanilla id
   registries read from the user's own Kore jar), neither consumed by a user-facing feature yet.
-- Added tests covering the index, the Kore-resolution filter, the output tree, runtime-built names and the datapack
-  layouts.
+- Added tests covering the index, the Kore-resolution filter, the output tree, runtime-built names, the datapack
+  layouts, and what each row kind copies and hovers.
 
 ## [0.0.3] - 2026-07-22
 
