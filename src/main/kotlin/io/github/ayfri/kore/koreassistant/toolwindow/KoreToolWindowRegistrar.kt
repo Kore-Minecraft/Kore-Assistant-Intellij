@@ -12,16 +12,15 @@ const val KORE_TOOL_WINDOW_ID = "Kore Elements"
 
 /**
  * Keeps the tool window's availability in step with the project. `ToolWindowFactory.shouldBeAvailable` is
- * evaluated once when the project opens, which loses the race against Gradle sync, so the window stayed hidden
- * until the next IDE restart. Re-syncing on root changes also picks up Kore being added or removed later.
+ * evaluated once when the project opens, which loses the race against Gradle sync; re-syncing here and on
+ * every root change (declared in `plugin.xml`) also picks up Kore being added or removed later.
  */
 class KoreToolWindowRegistrar : ProjectActivity {
-	override suspend fun execute(project: Project) {
-		project.messageBus.connect(project).subscribe(ModuleRootListener.TOPIC, object : ModuleRootListener {
-			override fun rootsChanged(event: ModuleRootEvent) = syncToolWindow(project)
-		})
-		syncToolWindow(project)
-	}
+	override suspend fun execute(project: Project) = syncToolWindow(project)
+}
+
+class KoreRootsListener(private val project: Project) : ModuleRootListener {
+	override fun rootsChanged(event: ModuleRootEvent) = syncToolWindow(project)
 }
 
 /** Tool window operations must go through [ToolWindowManager.invokeLater], not the plain application one. */

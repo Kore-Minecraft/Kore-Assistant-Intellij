@@ -32,6 +32,11 @@
         <fileBasedIndex implementation="io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex"/>
     </extensions>
 
+    <projectListeners>
+        <listener class="io.github.ayfri.kore.koreassistant.toolwindow.KoreRootsListener"
+                  topic="com.intellij.openapi.roots.ModuleRootListener"/>
+    </projectListeners>
+
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
         <supportsKotlinPluginMode supportsK2="true" />
     </extensions>
