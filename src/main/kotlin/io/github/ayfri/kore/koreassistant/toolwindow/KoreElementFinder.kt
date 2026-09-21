@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtTypeReference
 
 private const val KORE_PACKAGE_PREFIX = "io.github.ayfri.kore."
+private const val KORE_COMMANDS_PACKAGE_PREFIX = "io.github.ayfri.kore.commands."
 private const val DATA_PACK_RECEIVER_NAME = "DataPack"
 
 private val LOGGER = Logger.getInstance(KoreElementFinder::class.java)
@@ -85,10 +86,14 @@ internal data object KoreElementFinder {
 		return confirmed
 	}
 
-	/** Any callable declared under Kore's root package counts - checking ~230 exact FqNames buys nothing here. */
+	/**
+	 * Any callable declared under Kore's root package counts - checking ~230 exact FqNames buys nothing here - except
+	 * the command builders: `Function.function("x")` is a `/function` call, not a declaration, and shares its name.
+	 */
 	private fun KaSession.isKoreCall(call: KtCallExpression): Boolean {
 		val symbol = call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol ?: return false
-		return symbol.callableId?.asSingleFqName()?.asString()?.startsWith(KORE_PACKAGE_PREFIX) == true
+		val fqName = symbol.callableId?.asSingleFqName()?.asString() ?: return false
+		return fqName.startsWith(KORE_PACKAGE_PREFIX) && !fqName.startsWith(KORE_COMMANDS_PACKAGE_PREFIX)
 	}
 
 	/**

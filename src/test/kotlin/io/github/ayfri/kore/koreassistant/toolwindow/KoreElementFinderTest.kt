@@ -14,17 +14,35 @@ import javax.swing.tree.DefaultMutableTreeNode
 private val FAKE_KORE = """
 	package io.github.ayfri.kore
 
+	import io.github.ayfri.kore.functions.Function
+
 	class DataPack {
 		var namespace: String? = null
 	}
 
 	fun dataPack(name: String, block: DataPack.() -> Unit) = DataPack().apply(block)
-	fun DataPack.function(name: String, namespace: String = "", directory: String = "", block: () -> Unit) = Unit
+	fun DataPack.function(name: String, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 	fun DataPack.advancement(name: String, block: DataPack.() -> Unit) = Unit
+""".trimIndent()
+
+private val FAKE_FUNCTIONS = """
+	package io.github.ayfri.kore.functions
+
+	class Function
+""".trimIndent()
+
+/** The `/function` command shares its callee name with the declaration; it lives in `commands`, which is what tells them apart. */
+private val FAKE_COMMANDS = """
+	package io.github.ayfri.kore.commands
+
+	import io.github.ayfri.kore.functions.Function
+
+	fun Function.function(name: String) = Unit
 """.trimIndent()
 
 private val MAIN_KT = """
 	import io.github.ayfri.kore.advancement
+	import io.github.ayfri.kore.commands.function
 	import io.github.ayfri.kore.dataPack
 	import io.github.ayfri.kore.function
 
@@ -33,7 +51,9 @@ private val MAIN_KT = """
 
 	fun main() {
 		dataPack("mypack") {
-			function("helper", directory = "utils") { }
+			function("helper", directory = "utils") {
+				function("called_not_declared")
+			}
 			advancement("root") { }
 		}
 
@@ -44,6 +64,8 @@ private val MAIN_KT = """
 class KoreElementFinderTest : BasePlatformTestCase() {
 	private fun find(): Map<String, KoreElement> {
 		myFixture.addFileToProject("kore.kt", FAKE_KORE)
+		myFixture.addFileToProject("functions.kt", FAKE_FUNCTIONS)
+		myFixture.addFileToProject("commands.kt", FAKE_COMMANDS)
 		myFixture.configureByText("main.kt", MAIN_KT)
 
 		// The Analysis API refuses to resolve on the EDT, where platform tests run, so mirror what production does.
@@ -57,7 +79,7 @@ class KoreElementFinderTest : BasePlatformTestCase() {
 			.associateBy(KoreElement::name)
 	}
 
-	fun testKeepsOnlyCallsResolvingIntoKore() {
+	fun testKeepsOnlyDeclarationsResolvingIntoKoreNotCommands() {
 		assertEquals(setOf("mypack", "helper", "root"), find().keys)
 	}
 
