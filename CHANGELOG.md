@@ -29,6 +29,7 @@
 ### Fixed
 
 - `function("x")` commands inside a function body are no longer listed as declarations in the tool window.
+- Kore's own repository, where Kore is a source module rather than a dependency, is now recognised as a Kore project.
 
 ### Maintenance
 

@@ -10,6 +10,7 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 
 private const val KORE_LIBRARY_MARKER = "io.github.ayfri.kore"
+private const val KORE_SOURCE_MARKER = "io/github/ayfri/kore/DataPack.kt"
 
 /**
  * Detects whether the current project depends on Kore, so every other extension point can bail out
@@ -18,19 +19,28 @@ private const val KORE_LIBRARY_MARKER = "io.github.ayfri.kore"
  */
 @Service(Service.Level.PROJECT)
 class KoreLibraryService(private val project: Project) {
-	/** The Kore library entry's name, e.g. `Gradle: io.github.ayfri.kore:kore:2.8.0-26.1.2`, or `null` on a non-Kore project. */
-	private val libraryName: String?
+	/** [libraryName] is the Kore library entry, e.g. `Gradle: io.github.ayfri.kore:kore:2.8.0-26.1.2`; [fromSources] means Kore's own repo. */
+	private class Detection(val libraryName: String?, val fromSources: Boolean)
+
+	private val detection: Detection
 		get() = CachedValuesManager.getManager(project).getCachedValue(project) {
-			CachedValueProvider.Result(findLibraryName(), ProjectRootManager.getInstance(project))
+			CachedValueProvider.Result(Detection(findLibraryName(), hasKoreSources()), ProjectRootManager.getInstance(project))
 		}
 
-	val isKoreProject get() = libraryName != null
+	val isKoreProject get() = detection.libraryName != null || detection.fromSources
 
-	/** Kore's own version, or `null` if not a Kore project / unparsable. */
-	val version get() = libraryName?.substringAfterLast(':', "")?.let(KoreVersion::parse)
+	/** Kore's own version, or `null` if not a Kore project, built from Kore's sources, or unparsable. */
+	val version get() = detection.libraryName?.substringAfterLast(':', "")?.let(KoreVersion::parse)
 
-	private fun findLibraryName() = ModuleManager.getInstance(project).modules.asSequence()
-		.flatMap { ModuleRootManager.getInstance(it).orderEntries.asSequence() }
+	private val modules get() = ModuleManager.getInstance(project).modules.asSequence().map(ModuleRootManager::getInstance)
+
+	private fun findLibraryName() = modules
+		.flatMap { it.orderEntries.asSequence() }
 		.filterIsInstance<LibraryOrderEntry>()
 		.firstNotNullOfOrNull { entry -> entry.libraryName?.takeIf { it.contains(KORE_LIBRARY_MARKER) } }
+
+	/** Kore's own repository has no Kore library: `:kore` is a source module, so look for its entry point in the source roots. */
+	private fun hasKoreSources() = modules
+		.flatMap { it.sourceRoots.asSequence() }
+		.any { it.findFileByRelativePath(KORE_SOURCE_MARKER) != null }
 }
