@@ -17,6 +17,8 @@ for creating Minecraft datapacks without writing JSON. Features:
 - Gutter icons for quick identification of Kore `DataPack` objects and functions.
 - A "Kore Elements" tool window listing every kind of Kore declaration as a tree mirroring your generated datapack, with
   hover previews, copy actions and jump-to-source.
+- Inspections catching what compiles but breaks in-game: `function("name")` calls to a function declared nowhere (with
+  quick-fixes), two declarations writing the same file, and invalid `craftingShaped` patterns.
 - Live templates to quickly scaffold `dataPack` and `function` blocks.
 
 <!-- Plugin description end -->
@@ -34,6 +36,11 @@ IDEA.
   file or flat list, and sortable by name, kind, namespace or declaration order. Filter and speed search narrow the tree
   down; hovering a row shows a documentation-style card with its resource location, generated path, command and source;
   right-clicking offers Copy, Jump to Source and Find Usages.
+* **Inspections:** a `function("name")` command whose target is declared nowhere in the project is an error, with
+  quick-fixes to pick the closest name, call it under the namespace it actually lives in, swap `(name, namespace)`
+  arguments passed in the wrong order, or create the function. Two declarations writing the same file in one datapack
+  are a warning (the last one generated silently wins). A `craftingShaped` recipe with more than 3 rows, rows of
+  different widths, a pattern character without a `key`, or an unused key is an error.
 * **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates
   respectively.
 
