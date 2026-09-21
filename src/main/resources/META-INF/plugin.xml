@@ -49,6 +49,15 @@
                 enabledByDefault="true"
                 level="ERROR"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.UnresolvedFunctionReferenceInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreCraftingShaped"
+                displayName="Invalid shaped recipe pattern"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.CraftingShapedInspection"/>
     </extensions>
 
     <projectListeners>

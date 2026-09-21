@@ -9,6 +9,7 @@ object KoreNames {
 
 	/** The `/function` command builder, `Function.function(name)` / `(namespace, name)`, not the declaration above. */
 	val FUNCTION_COMMAND = FqName("io.github.ayfri.kore.commands.function")
+	val CRAFTING_SHAPED = FqName("io.github.ayfri.kore.features.recipes.types.craftingShaped")
 }
 
 object KoreIcons {

@@ -1,0 +1,13 @@
+<html>
+<body>
+Reports <code>craftingShaped { }</code> recipes Minecraft would reject at load time: more than 3 rows, a row wider than 3
+characters, rows of different widths, a pattern character without a matching <code>key(...)</code>, and, as a weak
+warning, a key no row uses.
+<p>
+Kore writes the recipe JSON as given; the error only shows up in the game log, with the recipe silently missing.
+</p>
+<p>
+Rows and keys built at runtime are skipped.
+</p>
+</body>
+</html>
