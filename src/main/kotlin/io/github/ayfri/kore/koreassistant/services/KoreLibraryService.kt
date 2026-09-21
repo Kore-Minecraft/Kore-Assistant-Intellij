@@ -1,14 +1,13 @@
 package io.github.ayfri.kore.koreassistant.services
 
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.LibraryOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ProjectRootManager
-import com.intellij.openapi.util.ModificationTracker
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
-import com.intellij.openapi.module.ModuleManager
 
 private const val KORE_LIBRARY_MARKER = "io.github.ayfri.kore"
 
@@ -19,36 +18,19 @@ private const val KORE_LIBRARY_MARKER = "io.github.ayfri.kore"
  */
 @Service(Service.Level.PROJECT)
 class KoreLibraryService(private val project: Project) {
-	val isKoreProject: Boolean
+	/** The Kore library entry's name, e.g. `Gradle: io.github.ayfri.kore:kore:2.8.0-26.1.2`, or `null` on a non-Kore project. */
+	private val libraryName: String?
 		get() = CachedValuesManager.getManager(project).getCachedValue(project) {
-			CachedValueProvider.Result(computeIsKoreProject(), ProjectRootManager.getInstance(project))
+			CachedValueProvider.Result(findLibraryName(), ProjectRootManager.getInstance(project))
 		}
 
-	/** Kore's own version, resolved from the `kore` library entry, or `null` if not a Kore project / unparsable. */
-	val version: KoreVersion?
-		get() = CachedValuesManager.getManager(project).getCachedValue(project) {
-			CachedValueProvider.Result(computeVersion(), ProjectRootManager.getInstance(project) as ModificationTracker)
-		}
+	val isKoreProject get() = libraryName != null
 
-	private fun computeIsKoreProject(): Boolean =
-		ModuleManager.getInstance(project).modules.any { module ->
-			ModuleRootManager.getInstance(module).orderEntries.any { entry ->
-				entry is LibraryOrderEntry && entry.libraryName?.contains(KORE_LIBRARY_MARKER) == true
-			}
-		}
+	/** Kore's own version, or `null` if not a Kore project / unparsable. */
+	val version get() = libraryName?.substringAfterLast(':', "")?.let(KoreVersion::parse)
 
-	private fun computeVersion(): KoreVersion? {
-		for (module in ModuleManager.getInstance(project).modules) {
-			for (entry in ModuleRootManager.getInstance(module).orderEntries) {
-				if (entry !is LibraryOrderEntry) continue
-				val name = entry.libraryName ?: continue
-				if (!name.contains(KORE_LIBRARY_MARKER)) continue
-
-				val rawVersion = name.substringAfterLast(':', "")
-				if (rawVersion.isEmpty()) continue
-				return KoreVersion.parse(rawVersion) ?: continue
-			}
-		}
-		return null
-	}
+	private fun findLibraryName() = ModuleManager.getInstance(project).modules.asSequence()
+		.flatMap { ModuleRootManager.getInstance(it).orderEntries.asSequence() }
+		.filterIsInstance<LibraryOrderEntry>()
+		.firstNotNullOfOrNull { entry -> entry.libraryName?.takeIf { it.contains(KORE_LIBRARY_MARKER) } }
 }

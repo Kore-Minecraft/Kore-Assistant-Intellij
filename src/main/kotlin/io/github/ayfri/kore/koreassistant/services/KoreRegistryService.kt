@@ -35,9 +35,6 @@ class KoreRegistryService(private val project: Project) {
 		val psiClass = JavaPsiFacade.getInstance(project).findClass("$GENERATED_PACKAGE.$registryClass", scope)
 			?: return emptySet()
 
-		return psiClass.fields
-			.filter { it.hasModifierProperty(PsiModifier.STATIC) }
-			.mapNotNull { it.name }
-			.toSet()
+		return psiClass.fields.filter { it.hasModifierProperty(PsiModifier.STATIC) }.mapTo(HashSet()) { it.name }
 	}
 }
