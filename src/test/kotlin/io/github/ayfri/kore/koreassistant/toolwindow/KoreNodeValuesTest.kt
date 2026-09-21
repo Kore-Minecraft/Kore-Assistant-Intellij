@@ -34,6 +34,15 @@ class KoreNodeValuesTest : BasePlatformTestCase() {
 		)
 	}
 
+	fun testPrefixesTagLocationsWithAHashAndNestsTheirPath() {
+		val tag = element(KoreDeclarationKind.FUNCTION_TAG, "hooks")
+
+		assertEquals("#ns:hooks", tag.resourceLocation)
+		assertEquals("/function #ns:hooks", tag.command)
+		assertEquals("data/ns/tags/function/hooks.json", tag.outputPath)
+		assertNull(element(KoreDeclarationKind.BLOCK_TAG, "logs").command)
+	}
+
 	fun testGivesADataPackNeitherLocationNorCommand() {
 		val dataPack = element(KoreDeclarationKind.DATA_PACK, "my_pack")
 

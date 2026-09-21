@@ -28,7 +28,7 @@ data class KoreElement(
 ) {
 	/**
 	 * Where Kore will write this element, relative to the datapack folder. Mirrors `Generator.getPathFromDataDir`
-	 * and `Function.getFinalPath`; tags are not indexed yet, so their extra `<type>` level never shows up here.
+	 * and `Function.getFinalPath`; a tag's extra `<type>` level is baked into its kind's `tags/<type>` folder.
 	 */
 	val outputPath: String
 		get() = when {
@@ -37,11 +37,12 @@ data class KoreElement(
 			else -> "data/$namespace/${kind.resourceFolder}/$name.json"
 		}
 
-	/** The `namespace:path` id used in-game and in other Kore calls. A datapack is a container, so it has none. */
+	/** The `namespace:path` id used in-game and in other Kore calls, `#`-prefixed for tags. A datapack is a container, so it has none. */
 	val resourceLocation: String?
 		get() = when {
 			kind == KoreDeclarationKind.DATA_PACK -> null
 			kind.isFunction -> "$namespace:${directory.orEmpty().withTrailingSlash()}$name"
+			kind.isTag -> "#$namespace:$name"
 			else -> "$namespace:$name"
 		}
 
@@ -61,6 +62,7 @@ data class KoreElement(
 					"loot_table" -> "/loot give @s loot $location"
 					"predicate" -> "/execute if predicate $location run say matched"
 					"recipe" -> "/recipe give @s $location"
+					"tags/function" -> "/function $location"
 					"worldgen/configured_feature" -> "/place feature $location"
 					"worldgen/placed_feature" -> "/place feature $location"
 					"worldgen/structure" -> "/place structure $location"

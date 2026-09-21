@@ -4,15 +4,14 @@
 
 ### Added
 
-- The tool window lists tags (`blockTag`, `functionTag`, ...) and every scoped builder: recipes, dialogs, structures,
-  enchantment providers, configured features and carvers, density functions and test environments, whether declared
-  in a `recipes { }` block or through `recipesBuilder`.
+- The tool window lists tags (`blockTag`, `functionTag`, ...) with their `#namespace:name` location and `tags/<type>` path,
+  and every scoped builder: recipes, dialogs, structures, enchantment providers, configured features and carvers,
+  density functions and test environments, whether declared in a `recipes { }` block or through `recipesBuilder`.
 
 ### Changed
 
 - Declaration kinds match Kore 2.14 (Minecraft 26.2): `structure`, `sulfurCubeArchetype`, `shipwreck`, and enchantment
   providers now written under `enchantment_provider`.
-
 - Gutter icons no longer resolve `dataPack` / `function` calls in projects that do not use Kore.
 - The tool window refreshes faster while typing.
 

@@ -85,7 +85,7 @@ internal data object KoreElementFinder {
 		return confirmed
 	}
 
-	/** Any callable declared under Kore's root package counts - checking ~88 exact FqNames buys nothing here. */
+	/** Any callable declared under Kore's root package counts - checking ~230 exact FqNames buys nothing here. */
 	private fun KaSession.isKoreCall(call: KtCallExpression): Boolean {
 		val symbol = call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol ?: return false
 		return symbol.callableId?.asSingleFqName()?.asString()?.startsWith(KORE_PACKAGE_PREFIX) == true
