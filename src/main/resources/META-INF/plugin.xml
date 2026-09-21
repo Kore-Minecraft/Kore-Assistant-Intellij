@@ -40,6 +40,15 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.DuplicateDeclarationInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreUnresolvedFunctionReference"
+                displayName="Unresolved Kore function reference"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.UnresolvedFunctionReferenceInspection"/>
     </extensions>
 
     <projectListeners>

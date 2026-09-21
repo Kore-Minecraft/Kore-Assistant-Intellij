@@ -6,6 +6,9 @@ import org.jetbrains.kotlin.name.FqName
 object KoreNames {
 	val DATA_PACK = FqName("io.github.ayfri.kore.dataPack")
 	val FUNCTION = FqName("io.github.ayfri.kore.functions.function")
+
+	/** The `/function` command builder, `Function.function(name)` / `(namespace, name)`, not the declaration above. */
+	val FUNCTION_COMMAND = FqName("io.github.ayfri.kore.commands.function")
 }
 
 object KoreIcons {

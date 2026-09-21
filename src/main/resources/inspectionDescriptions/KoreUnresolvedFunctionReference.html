@@ -1,0 +1,18 @@
+<html>
+<body>
+Reports <code>function("name")</code> commands whose target function is declared nowhere in the project.
+<p>
+The name-only overload always calls <code>&lt;datapack&gt;:name</code>, even from a function declared under another
+namespace; the <code>function(namespace, name)</code> overload calls exactly what it is given. A missing target is a
+command Minecraft refuses at run time.
+</p>
+<p>
+Quick-fixes offer the closest declared name, the namespace the function is actually declared under, swapping the two
+arguments when they were passed as <code>(name, namespace)</code>, or creating the missing function next to the current one.
+</p>
+<p>
+Namespaces unknown to the project (another pack on the server) and namespaces holding a runtime-built declaration
+(<code>function("gen_$i")</code>) are never reported.
+</p>
+</body>
+</html>

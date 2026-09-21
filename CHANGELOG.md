@@ -4,6 +4,8 @@
 
 ### Added
 
+- An inspection flagging a `function("name")` command whose target is declared nowhere, with quick-fixes to pick the
+  closest name, the namespace the function lives in, swap misordered `(name, namespace)` arguments or create the function.
 - An inspection warning when two declarations write the same file in one datapack, since the last one generated
   silently overwrites the others.
 - The tool window lists tags (`blockTag`, `functionTag`, ...) with their `#namespace:name` location and `tags/<type>` path,

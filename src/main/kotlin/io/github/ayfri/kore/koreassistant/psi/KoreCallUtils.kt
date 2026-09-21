@@ -8,6 +8,7 @@ import io.github.ayfri.kore.koreassistant.index.KoreScope
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
@@ -43,8 +44,11 @@ fun PsiElement.asCalleeOf(shortName: Name): KtCallExpression? {
 }
 
 /** Resolves [call] and checks it targets the function [fqName]. Must run inside `analyze { }`. */
-fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName): Boolean =
-	call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol?.callableId?.asSingleFqName() == fqName
+fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName): Boolean = resolvedOverload(call, fqName) != null
+
+/** The overload of [fqName] that [call] resolves to, or `null` when it targets something else. Must run inside `analyze { }`. */
+fun KaSession.resolvedOverload(call: KtCallExpression, fqName: FqName): KaFunctionSymbol? =
+	call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol?.takeIf { it.callableId?.asSingleFqName() == fqName }
 
 /** The callee's short name, or `null` when the callee is not a plain identifier. Purely syntactic. */
 fun KtCallExpression.calleeName(): String? = (calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
