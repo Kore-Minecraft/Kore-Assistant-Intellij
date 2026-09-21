@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-09-21
+
 ### Added
 
 - An inspection flagging a `function("name")` command whose target is declared nowhere, with quick-fixes to pick the
@@ -112,7 +114,8 @@
 - Gutter icon provider for Kore functions.
 - "Kore Elements" tool window to browse Kore components in the project.
 
-[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.1...v0.0.2
