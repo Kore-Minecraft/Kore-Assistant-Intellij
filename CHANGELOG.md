@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Updated dependencies.
+
 ## [0.0.4] - 2026-07-27
 
 ### Added
