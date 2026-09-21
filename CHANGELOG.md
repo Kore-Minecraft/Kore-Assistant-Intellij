@@ -4,6 +4,8 @@
 
 ### Added
 
+- An inspection warning when two declarations write the same file in one datapack, since the last one generated
+  silently overwrites the others.
 - The tool window lists tags (`blockTag`, `functionTag`, ...) with their `#namespace:name` location and `tags/<type>` path,
   and every scoped builder: recipes, dialogs, structures, enchantment providers, configured features and carvers,
   density functions and test environments, whether declared in a `recipes { }` block or through `recipesBuilder`.

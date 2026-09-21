@@ -30,6 +30,16 @@
         <defaultLiveTemplates file="/liveTemplates/Kore.xml"/>
 
         <fileBasedIndex implementation="io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex"/>
+
+        <localInspection
+                language="kotlin"
+                shortName="KoreDuplicateDeclaration"
+                displayName="Duplicate Kore declaration"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.DuplicateDeclarationInspection"/>
     </extensions>
 
     <projectListeners>

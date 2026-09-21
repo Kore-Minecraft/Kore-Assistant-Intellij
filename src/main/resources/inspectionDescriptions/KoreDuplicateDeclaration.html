@@ -1,0 +1,14 @@
+<html>
+<body>
+Reports Kore declarations that produce the same file in the same datapack: two <code>function("foo")</code> calls, two
+<code>predicate("x")</code> in different <code>DataPack</code> extensions, and so on.
+<p>
+Kore generates every declaration; when two of them target the same path, the last one generated silently overwrites
+the others, so one of them never reaches the game.
+</p>
+<p>
+Declarations whose name is built at runtime (a loop variable, a concatenation) and declarations that cannot be attributed
+to a datapack are not reported.
+</p>
+</body>
+</html>
