@@ -142,7 +142,10 @@ private fun elementComparator(sortBy: KoreSortBy, sortOrder: KoreSortOrder): Com
 	val comparator = when (sortBy) {
 		KoreSortBy.NAME -> byName
 
-		KoreSortBy.KIND -> compareBy<KoreElement, String>(String.CASE_INSENSITIVE_ORDER) { it.kind.displayName }.then(byName)
+		// Folder first, so the 60+ configured feature kinds or the 20 recipe kinds stay clustered instead of scattered A-Z.
+		KoreSortBy.KIND -> compareBy<KoreElement, String>(String.CASE_INSENSITIVE_ORDER) { it.kind.resourceFolder.orEmpty() }
+			.thenBy(String.CASE_INSENSITIVE_ORDER) { it.kind.displayName }
+			.then(byName)
 
 		KoreSortBy.NAMESPACE -> compareBy(String.CASE_INSENSITIVE_ORDER, KoreElement::namespace).then(byName)
 

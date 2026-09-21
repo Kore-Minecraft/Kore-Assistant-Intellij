@@ -12,6 +12,7 @@
 
 - Declaration kinds match Kore 2.14 (Minecraft 26.2): `structure`, `sulfurCubeArchetype`, `shipwreck`, and enchantment
   providers now written under `enchantment_provider`.
+- Sorting by kind keeps kinds sharing a folder next to each other instead of scattering them alphabetically.
 - Gutter icons no longer resolve `dataPack` / `function` calls in projects that do not use Kore.
 - The tool window refreshes faster while typing.
 
