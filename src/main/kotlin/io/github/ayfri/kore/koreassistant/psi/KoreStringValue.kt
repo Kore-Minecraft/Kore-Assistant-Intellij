@@ -25,8 +25,7 @@ private val WHITESPACE = Regex("\\s+")
  *
  * [isDynamic] marks a value only partly known statically: the DSL is arbitrary Kotlin, so a declaration named
  * from a loop variable or a runtime call can never be computed here. [text] then keeps the source spelling of
- * the unknown parts (`blocks/$leafId`), which still identifies the declaration for the user - much better
- * than dropping it, which is what the plugin used to do.
+ * the unknown parts (`blocks/$leafId`), which still identifies the declaration for the user.
  */
 data class KoreStringValue(val text: String, val isDynamic: Boolean)
 
@@ -43,15 +42,15 @@ fun interface KorePropertyResolver {
 fun KtExpression.koreStringValue(resolver: KorePropertyResolver): KoreStringValue? = evaluate(resolver, MAX_EVALUATION_DEPTH)
 
 private fun KtExpression.evaluate(resolver: KorePropertyResolver, depth: Int): KoreStringValue? = when {
-	depth <= 0 -> placeholder()
+	depth <= 0 -> koreStringPlaceholder()
 	this is KtParenthesizedExpression -> expression?.evaluate(resolver, depth - 1)
 	this is KtStringTemplateExpression -> evaluateTemplate(resolver, depth)
 	this is KtBinaryExpression && operationToken == KtTokens.PLUS -> evaluateConcatenation(resolver, depth)
-	this is KtSimpleNameExpression -> resolver.initializerOf(this)?.evaluate(resolver, depth - 1) ?: placeholder()
+	this is KtSimpleNameExpression -> resolver.initializerOf(this)?.evaluate(resolver, depth - 1) ?: koreStringPlaceholder()
 	// `Constants.NAMESPACE` / `Items.OAK_LEAVES`: only the selector names a property, the receiver is scoping.
 	this is KtDotQualifiedExpression -> (selectorExpression as? KtSimpleNameExpression)
 		?.let { resolver.initializerOf(it)?.evaluate(resolver, depth - 1) }
-		?: placeholder()
+		?: koreStringPlaceholder()
 
 	else -> null
 }
@@ -83,15 +82,13 @@ private fun KtBinaryExpression.evaluateConcatenation(resolver: KorePropertyResol
 }
 
 private fun KtExpression.evaluateOrPlaceholder(resolver: KorePropertyResolver, depth: Int) =
-	evaluate(resolver, depth)?.takeUnless(KoreStringValue::isDynamic) ?: placeholder()
+	evaluate(resolver, depth)?.takeUnless(KoreStringValue::isDynamic) ?: koreStringPlaceholder()
 
 /**
  * Stands in for an expression the plugin cannot compute, showing its source spelling. The text is squeezed
  * onto one line and clipped: a name can be built by an arbitrarily long expression, a tree row cannot.
  */
-fun KtExpression.koreStringPlaceholder() = placeholder()
-
-private fun KtExpression.placeholder() =
+fun KtExpression.koreStringPlaceholder() =
 	KoreStringValue(text.replace(WHITESPACE, " ").take(MAX_PLACEHOLDER_LENGTH), true)
 
 /**

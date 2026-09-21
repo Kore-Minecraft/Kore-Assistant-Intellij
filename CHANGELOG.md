@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Gutter icons no longer resolve `dataPack` / `function` calls in projects that do not use Kore.
+
 ### Maintenance
 
 - Updated dependencies.

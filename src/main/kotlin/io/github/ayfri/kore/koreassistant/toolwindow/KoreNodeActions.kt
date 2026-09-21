@@ -17,8 +17,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
-import io.github.ayfri.kore.koreassistant.psi.calleeName
-import org.jetbrains.kotlin.psi.KtCallExpression
+import io.github.ayfri.kore.koreassistant.psi.koreCallAt
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import java.awt.datatransfer.StringSelection
@@ -88,16 +87,11 @@ private fun KoreTreeNode.subtreeValues(): List<KoreCopyValue> {
 	}
 }
 
-/**
- * What Find Usages targets: the declaration around the call, since the call itself has no usages to find.
- * The offset is re-validated through the callee name, the same way [KoreElementFinder] treats index hits.
- */
+/** What Find Usages targets: the declaration around the call, since the call itself has no usages to find. */
 fun KoreElement.findDeclaration(project: Project): PsiElement? {
 	val file = VirtualFileManager.getInstance().findFileByUrl(fileUrl)?.takeIf { it.isValid } ?: return null
 	val ktFile = PsiManager.getInstance(project).findFile(file) as? KtFile ?: return null
-	val leaf = ktFile.findElementAt(offset) ?: return null
-	val call = PsiTreeUtil.getParentOfType(leaf, KtCallExpression::class.java, false) ?: return null
-	if (call.calleeName() != kind.builderName) return null
+	val call = ktFile.koreCallAt(offset, kind.builderName) ?: return null
 
 	return PsiTreeUtil.getParentOfType(call, KtNamedDeclaration::class.java)
 }
