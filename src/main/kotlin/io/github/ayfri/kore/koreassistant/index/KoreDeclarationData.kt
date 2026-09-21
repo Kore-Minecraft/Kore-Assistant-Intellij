@@ -17,7 +17,7 @@ import java.io.DataOutput
 private const val NAMESPACE_PARAMETER_NAME = "namespace"
 private const val DIRECTORY_PARAMETER_NAME = "directory"
 
-// `function(name, namespace, directory) { }` - the only family passing them as parameters rather than in the block.
+// `function(name, namespace, directory) { }` and `blockTag(fileName, namespace) { }` pass them as parameters rather than in the block.
 private const val NAMESPACE_PARAMETER_INDEX = 1
 private const val DIRECTORY_PARAMETER_INDEX = 2
 
@@ -53,7 +53,7 @@ fun KtCallExpression.koreDeclarationData(kind: KoreDeclarationKind, resolver: Ko
 	val name = nameArgument.koreStringValue(resolver) ?: nameArgument.koreStringPlaceholder()
 
 	val namespace = namedArgument(NAMESPACE_PARAMETER_NAME)?.koreStringValue(resolver)
-		?: (if (kind.isFunction) positionalArgument(NAMESPACE_PARAMETER_INDEX)?.koreStringValue(resolver) else null)
+		?: (if (kind.isFunction || kind.isTag) positionalArgument(NAMESPACE_PARAMETER_INDEX)?.koreStringValue(resolver) else null)
 		?: namespaceAssignmentInBlock(resolver)
 
 	val directory = if (!kind.isFunction) null else namedArgument(DIRECTORY_PARAMETER_NAME)?.koreStringValue(resolver)

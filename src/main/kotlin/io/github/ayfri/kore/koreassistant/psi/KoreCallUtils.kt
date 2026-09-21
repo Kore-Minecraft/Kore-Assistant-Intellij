@@ -3,6 +3,8 @@ package io.github.ayfri.kore.koreassistant.psi
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.intellij.psi.util.PsiTreeUtil
+import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.index.KoreScope
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
@@ -16,6 +18,7 @@ import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
+import org.jetbrains.kotlin.psi.KtQualifiedExpression
 
 private const val DATA_PACK_BUILDER_NAME = "dataPack"
 private const val NAMESPACE_PROPERTY_NAME = "namespace"
@@ -45,6 +48,39 @@ fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName): Boolean =
 
 /** The callee's short name, or `null` when the callee is not a plain identifier. Purely syntactic. */
 fun KtCallExpression.calleeName(): String? = (calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
+
+/** The Kore builder this call is named after, scope-aware (`noise` inside `densityFunctions { }` is not the worldgen one). */
+fun KtCallExpression.koreDeclarationKind(): KoreDeclarationKind? =
+	calleeName()?.let { KoreDeclarationKind.byBuilderName(it, ::activeKoreScopes) }
+
+/**
+ * The scopes this call sits in, read syntactically: every enclosing `recipes { }` call plus a `recipesBuilder`
+ * property anywhere up the chain, as a receiver (`dp.recipesBuilder.smelting("x")`, `recipesBuilder.apply { }`)
+ * or as an argument (`with(recipesBuilder) { }`).
+ */
+fun KtCallExpression.activeKoreScopes(): Set<KoreScope> {
+	val scopes = mutableSetOf<KoreScope>()
+	var current: PsiElement? = parent
+	while (current != null) {
+		when (current) {
+			is KtCallExpression -> {
+				current.calleeName()?.let(KoreScope::byBuilderName)?.let(scopes::add)
+				current.valueArguments.forEach { it.getArgumentExpression()?.lastName()?.let(KoreScope::byReceiverName)?.let(scopes::add) }
+			}
+
+			is KtQualifiedExpression -> current.receiverExpression.lastName()?.let(KoreScope::byReceiverName)?.let(scopes::add)
+		}
+		current = current.parent
+	}
+	return scopes
+}
+
+/** `recipesBuilder` for both `recipesBuilder` and `dp.recipesBuilder`. */
+private fun KtExpression.lastName(): String? = when (this) {
+	is KtNameReferenceExpression -> getReferencedName()
+	is KtQualifiedExpression -> (selectorExpression as? KtNameReferenceExpression)?.getReferencedName()
+	else -> null
+}
 
 /** The call named [builderName] at [offset]; an indexed offset can be stale after an edit, hence the callee re-check. */
 fun KtFile.koreCallAt(offset: Int, builderName: String): KtCallExpression? {

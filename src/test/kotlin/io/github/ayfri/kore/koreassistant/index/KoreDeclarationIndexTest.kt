@@ -36,6 +36,24 @@ private val MAIN_KT = """
 					namespace = "minecraft"
 				}
 			}
+
+			configuredFeatures {
+				ore("iron_ore", Blocks.IRON_ORE)
+			}
+			densityFunctions {
+				noise("terrain_noise", Noises.CAVE_LAYER)
+			}
+			noise("worldgen_noise") { }
+			testEnvironments {
+				function("test_env") { }
+			}
+			recipesBuilder.blasting("iron_blast") { }
+			with(structuresBuilder) {
+				shipwreck("beached")
+			}
+
+			blockTag("logs", "minecraft") { }
+			functionTag("tick_hooks") { }
 		}
 	}
 """.trimIndent()
@@ -61,6 +79,14 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 				"blocks/\$leaf",
 				"welcome",
 				"links",
+				"iron_ore",
+				"terrain_noise",
+				"worldgen_noise",
+				"test_env",
+				"iron_blast",
+				"beached",
+				"logs",
+				"tick_hooks",
 			),
 			indexed.keys,
 		)
@@ -121,6 +147,34 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 		assertEquals(KoreDeclarationKind.NOTICE, indexed.getValue("welcome").kind)
 		assertEquals(KoreDeclarationKind.SERVER_LINKS, indexed.getValue("links").kind)
 		assertEquals("rotten-flesh-to-leather", indexed.getValue("welcome").dataPackName)
+	}
+
+	/** Most scoped builders (`ore`, `single`, `abs`) default their block, so a bare call is a declaration too. */
+	fun testResolvesScopedBuildersFromTheirEnclosingBlockOrReceiver() {
+		val indexed = index()
+
+		assertEquals(KoreDeclarationKind.ORE_FEATURE, indexed.getValue("iron_ore").kind)
+		assertEquals(KoreDeclarationKind.FUNCTION_TEST_ENVIRONMENT, indexed.getValue("test_env").kind)
+		assertEquals(KoreDeclarationKind.BLASTING, indexed.getValue("iron_blast").kind)
+		assertEquals(KoreDeclarationKind.SHIPWRECK, indexed.getValue("beached").kind)
+		assertEquals("rotten-flesh-to-leather", indexed.getValue("iron_ore").dataPackName)
+	}
+
+	/** `noise` is both `DataPack.noise` (worldgen/noise) and `DensityFunctionsScope.noise`: the scope tells them apart. */
+	fun testTellsAmbiguousBuilderNamesApartByScope() {
+		val indexed = index()
+
+		assertEquals(KoreDeclarationKind.NOISE_DENSITY_FUNCTION, indexed.getValue("terrain_noise").kind)
+		assertEquals(KoreDeclarationKind.NOISE, indexed.getValue("worldgen_noise").kind)
+	}
+
+	fun testIndexesTypedTagsWithTheirPositionalNamespace() {
+		val indexed = index()
+
+		assertEquals(KoreDeclarationKind.BLOCK_TAG, indexed.getValue("logs").kind)
+		assertEquals("minecraft", indexed.getValue("logs").namespace)
+		assertEquals(KoreDeclarationKind.FUNCTION_TAG, indexed.getValue("tick_hooks").kind)
+		assertNull(indexed.getValue("tick_hooks").namespace)
 	}
 
 	fun testKeepsInterpolatedNamesAsTemplates() {

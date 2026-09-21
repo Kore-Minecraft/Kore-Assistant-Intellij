@@ -5,7 +5,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.*
 import com.intellij.util.io.EnumeratorStringDescriptor
 import io.github.ayfri.kore.koreassistant.psi.LocalPropertyResolver
-import io.github.ayfri.kore.koreassistant.psi.calleeName
+import io.github.ayfri.kore.koreassistant.psi.koreDeclarationKind
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtFile
@@ -15,8 +15,8 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
  * Syntactic file-based index of Kore declaration calls (`function("x") { }`, `advancement("y") { }`, ...),
  * keyed by declared name. Built once at indexing time and queried in microseconds.
  *
- * No resolution happens here - [KoreDeclarationKind.byBuilderName] is a pure string lookup, so a user's own
- * unrelated `function("x")` can end up indexed too. Callers must confirm the match with `analyze { }` at
+ * No resolution happens here - `koreDeclarationKind()` is a string lookup plus a syntactic scope walk, so a user's
+ * own unrelated `function("x")` can end up indexed too. Callers must confirm the match with `analyze { }` at
  * query time before trusting it (see `resolvesTo` in `psi/KoreCallUtils.kt`).
  *
  * Names are read with a [LocalPropertyResolver], which cannot leave the file being indexed, so a declaration
@@ -37,7 +37,7 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 		file.accept(object : KtTreeVisitorVoid() {
 			override fun visitCallExpression(expression: KtCallExpression) {
 				super.visitCallExpression(expression)
-				val kind = expression.calleeName()?.let(KoreDeclarationKind::byBuilderName) ?: return
+				val kind = expression.koreDeclarationKind() ?: return
 				val data = expression.koreDeclarationData(kind, resolver) ?: return
 				result.getOrPut(data.name, ::mutableListOf) += data
 			}
@@ -51,7 +51,7 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 	override fun getValueExternalizer() = KoreDeclarationDataExternalizer
 
 	// Bump on ANY change to the indexer logic, KoreDeclarationKind, or KoreDeclarationDataExternalizer.
-	override fun getVersion() = 4
+	override fun getVersion() = 5
 
 	override fun getInputFilter() = DefaultFileTypeSpecificInputFilter(KotlinFileType.INSTANCE)
 
