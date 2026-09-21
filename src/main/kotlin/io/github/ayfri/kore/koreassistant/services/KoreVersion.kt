@@ -5,6 +5,9 @@ package io.github.ayfri.kore.koreassistant.services
  * always split on the *last* dash, never compare the raw string as a semver.
  */
 data class KoreVersion(val kore: String, val minecraft: String) {
+	/** The Maven form, also the Gradle plugin's version since both are released together. */
+	override fun toString() = "$kore-$minecraft"
+
 	companion object {
 		fun parse(rawVersion: String): KoreVersion? {
 			val separatorIndex = rawVersion.lastIndexOf('-')

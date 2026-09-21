@@ -1,0 +1,11 @@
+<html>
+<body>
+Applies the Kore Gradle plugin to the module's <code>build.gradle.kts</code>: adds
+<code>id("io.github.ayfri.kore") version "&lt;your Kore version&gt;"</code> to the <code>plugins { }</code> block and a
+<code>kore { mainClass = "..." }</code> block pointing at the file holding the <code>dataPack</code> call, then syncs the
+project. The diff is shown before anything is written.
+<p>
+Once synced, the run marker on <code>dataPack(...)</code> offers <code>koreRun</code> (build, link into your worlds,
+<code>/reload</code> over RCON), <code>koreBuild</code>, <code>koreLink</code> and <code>koreReload</code>.
+</body>
+</html>

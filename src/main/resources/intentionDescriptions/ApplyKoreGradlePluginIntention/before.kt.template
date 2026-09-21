@@ -1,0 +1,7 @@
+plugins {
+	kotlin("jvm") version "2.4.20"
+}
+
+dependencies {
+	implementation("io.github.ayfri.kore:kore:2.14.0-26.2")
+}
