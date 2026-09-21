@@ -19,6 +19,9 @@ for creating Minecraft datapacks without writing JSON. Features:
   hover previews, copy actions and jump-to-source.
 - Inspections catching what compiles but breaks in-game: `function("name")` calls to a function declared nowhere (with
   quick-fixes), two declarations writing the same file, and invalid `craftingShaped` patterns.
+- Run integration through the [Kore Gradle plugin](https://kore.ayfri.com/docs/guides/gradle-plugin): a run marker on
+  `dataPack(...)` for `koreRun` / `koreBuild` / `koreLink` / `koreReload`, an intention that applies the plugin to your
+  `build.gradle.kts`, and completion of your world names in `kore { worlds = ... }`.
 - Live templates to quickly scaffold `dataPack` and `function` blocks.
 
 <!-- Plugin description end -->
@@ -41,6 +44,12 @@ IDEA.
   arguments passed in the wrong order, or create the function. Two declarations writing the same file in one datapack
   are a warning (the last one generated silently wins). A `craftingShaped` recipe with more than 3 rows, rows of
   different widths, a pattern character without a `key`, or an unused key is an error.
+* **Run integration:** with the [Kore Gradle plugin](https://kore.ayfri.com/docs/guides/gradle-plugin) applied, the run
+  marker on `dataPack(...)` offers `koreRun` (build, link into your worlds, `/reload` over RCON), `koreBuild`, `koreLink`
+  and `koreReload`, each as a Gradle run configuration. Without it, <kbd>Alt+Enter</kbd> on `dataPack(...)` offers
+  **Apply the Kore Gradle plugin**, which shows the `build.gradle.kts` diff (plugin line + `kore { mainClass }` block)
+  before writing it and syncing. Inside `kore { worlds = listOf("...") }`, completion lists the worlds of your Minecraft
+  installation.
 * **Live Templates:** Quickly create Kore `dataPack` and `function` blocks using the `dp` and `fn` live templates
   respectively.
 
