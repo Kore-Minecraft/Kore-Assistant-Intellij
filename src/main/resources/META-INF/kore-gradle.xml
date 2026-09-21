@@ -1,0 +1,17 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <runLineMarkerContributor
+                language="kotlin"
+                implementationClass="io.github.ayfri.kore.koreassistant.gradle.KoreRunLineMarkerContributor"/>
+
+        <intentionAction>
+            <language>kotlin</language>
+            <className>io.github.ayfri.kore.koreassistant.gradle.ApplyKoreGradlePluginIntention</className>
+            <category>Kore</category>
+        </intentionAction>
+
+        <completion.contributor
+                language="kotlin"
+                implementationClass="io.github.ayfri.kore.koreassistant.gradle.KoreWorldCompletionContributor"/>
+    </extensions>
+</idea-plugin>

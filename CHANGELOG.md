@@ -10,6 +10,8 @@
   silently overwrites the others.
 - An inspection on `craftingShaped` recipes: more than 3 rows, uneven rows, a pattern character without a key or an
   unused key.
+- A run marker on `dataPack(...)` in projects using the Kore Gradle plugin, running `koreRun`, `koreBuild`, `koreLink` or
+  `koreReload` as a Gradle run configuration.
 - The tool window lists tags (`blockTag`, `functionTag`, ...) with their `#namespace:name` location and `tags/<type>` path,
   and every scoped builder: recipes, dialogs, structures, enchantment providers, configured features and carvers,
   density functions and test environments, whether declared in a `recipes { }` block or through `recipesBuilder`.
