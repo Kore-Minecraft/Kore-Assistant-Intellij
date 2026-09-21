@@ -5,10 +5,11 @@
 ### Changed
 
 - Gutter icons no longer resolve `dataPack` / `function` calls in projects that do not use Kore.
+- The tool window refreshes faster while typing.
 
 ### Maintenance
 
-- Updated dependencies.
+- Updated dependencies and moved background work to Kotlin coroutines.
 
 ## [0.0.4] - 2026-07-27
 

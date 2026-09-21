@@ -74,7 +74,7 @@ data class KoreFileNode(override val label: String, override val elements: List<
 data class KoreElementNode(override val element: KoreElement) : KoreTreeNode {
 	override val label get() = element.name
 	override val icon get() = element.kind.icon
-	override val secondaryText get() = "${element.fileName}:${element.lineNumber}"
+	override val secondaryText get() = element.sourceLocation
 	override val elements get() = listOf(element)
 	override val nodeKind get() = element.kind.displayName
 }
@@ -99,11 +99,12 @@ fun buildKoreTree(
 	when (groupBy) {
 		// `dataPack("x") { }` is the container, not a resource, so it becomes the root row of its own subtree.
 		KoreGroupBy.OUTPUT -> {
-			val resources = sorted.filter { it.kind != KoreDeclarationKind.DATA_PACK }
+			val resourcesByDataPack = sorted.filter { it.kind != KoreDeclarationKind.DATA_PACK }.groupBy(KoreElement::dataPackName)
+			// Taken from every element, so a datapack declaring no resource yet still gets its row.
 			val dataPackNames = sorted.map(KoreElement::dataPackName).distinct().sorted()
 
 			for (dataPackName in dataPackNames) {
-				val own = resources.filter { it.dataPackName == dataPackName }
+				val own = resourcesByDataPack[dataPackName].orEmpty()
 				val dataPackNode = DefaultMutableTreeNode(KoreDataPackNode(dataPackName, own))
 
 				for ((namespace, inNamespace) in own.groupBy(KoreElement::namespace).toSortedMap()) {

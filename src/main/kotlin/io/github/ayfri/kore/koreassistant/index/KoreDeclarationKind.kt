@@ -132,9 +132,7 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	val isFunction get() = resourceFolder == FUNCTION_RESOURCE_FOLDER
 
 	/** `CRAFTING_SHAPED` -> `Crafting Shaped`, for the tooltip and the sort-by-kind grouping. */
-	val displayName by lazy {
-		name.split('_').joinToString(" ") { word -> word.lowercase().replaceFirstChar(Char::titlecase) }
-	}
+	val displayName = name.split('_').joinToString(" ") { word -> word.lowercase().replaceFirstChar(Char::titlecase) }
 
 	// Resolved lazily so the indexer, which only ever reads names and folders, never forces icon loading.
 	val icon: Icon

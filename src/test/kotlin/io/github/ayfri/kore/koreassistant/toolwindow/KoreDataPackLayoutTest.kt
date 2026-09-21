@@ -1,8 +1,7 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.progress.EmptyProgressIndicator
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
@@ -52,8 +51,8 @@ class KoreDataPackLayoutTest : BasePlatformTestCase() {
 
 		return ApplicationManager.getApplication()
 			.executeOnPooledThread<List<KoreElement>> {
-				runReadAction {
-					KoreElementFinder.collect(project, GlobalSearchScope.allScope(project), EmptyProgressIndicator())
+				runReadActionBlocking {
+					KoreElementFinder.collect(project, GlobalSearchScope.allScope(project))
 				}
 			}
 			.get()

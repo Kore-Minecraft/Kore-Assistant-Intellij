@@ -1,9 +1,7 @@
 package io.github.ayfri.kore.koreassistant.index
 
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.util.Processor
 import com.intellij.util.indexing.*
 import com.intellij.util.io.EnumeratorStringDescriptor
 import io.github.ayfri.kore.koreassistant.psi.LocalPropertyResolver
@@ -15,8 +13,7 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 
 /**
  * Syntactic file-based index of Kore declaration calls (`function("x") { }`, `advancement("y") { }`, ...),
- * keyed by declared name. Built once at indexing time and queried in microseconds, replacing the
- * `ReferencesSearch`-based lookup in `KoreToolWindowContent` (O(project), needs smart mode).
+ * keyed by declared name. Built once at indexing time and queried in microseconds.
  *
  * No resolution happens here - [KoreDeclarationKind.byBuilderName] is a pure string lookup, so a user's own
  * unrelated `function("x")` can end up indexed too. Callers must confirm the match with `analyze { }` at
@@ -60,20 +57,16 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 
 	override fun dependsOnFileContent() = true
 
-	fun find(project: Project, name: String, scope: GlobalSearchScope = GlobalSearchScope.allScope(project)) =
-		FileBasedIndex.getInstance().getValues(NAME, name, scope).flatten()
-
-	/** Every declaration indexed in [scope], paired with the file it was found in. */
-	fun findAll(project: Project, scope: GlobalSearchScope): List<Pair<VirtualFile, KoreDeclarationData>> {
+	/** Every declaration indexed in [scope], grouped by the file it was found in. */
+	fun findAll(scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {
 		val index = FileBasedIndex.getInstance()
-		val result = mutableListOf<Pair<VirtualFile, KoreDeclarationData>>()
+		val result = HashMap<VirtualFile, MutableList<KoreDeclarationData>>()
 
-		index.processAllKeys(NAME, Processor { key ->
+		index.processAllKeys(NAME, { key ->
 			index.processValues(NAME, key, null, { file, declarations ->
-				declarations.mapTo(result) { file to it }
+				result.getOrPut(file, ::mutableListOf) += declarations
 				true
 			}, scope)
-			true
 		}, scope, null)
 
 		return result

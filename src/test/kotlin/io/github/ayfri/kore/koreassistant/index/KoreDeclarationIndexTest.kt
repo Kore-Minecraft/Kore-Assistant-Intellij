@@ -43,8 +43,7 @@ private val MAIN_KT = """
 class KoreDeclarationIndexTest : BasePlatformTestCase() {
 	private fun index(): Map<String, KoreDeclarationData> {
 		myFixture.configureByText("main.kt", MAIN_KT)
-		return KoreDeclarationIndex.findAll(project, GlobalSearchScope.allScope(project))
-			.associate { (_, data) -> data.name to data }
+		return KoreDeclarationIndex.findAll(GlobalSearchScope.allScope(project)).values.flatten().associateBy { it.name }
 	}
 
 	fun testIndexesEveryDeclarationKind() {

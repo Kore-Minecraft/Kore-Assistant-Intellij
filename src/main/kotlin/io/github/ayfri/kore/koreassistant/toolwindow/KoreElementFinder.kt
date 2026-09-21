@@ -1,14 +1,11 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
-import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
@@ -18,6 +15,7 @@ import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 import io.github.ayfri.kore.koreassistant.index.koreDeclarationData
 import io.github.ayfri.kore.koreassistant.psi.ResolvingPropertyResolver
 import io.github.ayfri.kore.koreassistant.psi.calleeName
+import io.github.ayfri.kore.koreassistant.psi.koreCallAt
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyze
@@ -33,36 +31,24 @@ import org.jetbrains.kotlin.psi.KtTypeReference
 private const val KORE_PACKAGE_PREFIX = "io.github.ayfri.kore."
 private const val DATA_PACK_RECEIVER_NAME = "DataPack"
 
+private val LOGGER = Logger.getInstance(KoreElementFinder::class.java)
+
 /**
  * Turns [KoreDeclarationIndex] hits into [KoreElement]s. The index is syntactic, so every candidate is
- * confirmed here with `analyze { }` - one session per file rather than one per call, since resolving a
- * whole datapack's worth of declarations one session at a time is what made the old `ReferencesSearch`
- * approach slow.
+ * confirmed here with `analyze { }` - one session per file rather than one per call.
  */
 @OptIn(KaIdeApi::class)
 internal data object KoreElementFinder {
-	private val LOGGER = Logger.getInstance(KoreElementFinder::class.java)
-
-	fun findAll(project: Project, indicator: ProgressIndicator): List<KoreElement> =
-		ReadAction.nonBlocking<List<KoreElement>> { collect(project, GlobalSearchScope.projectScope(project), indicator) }
-			.wrapProgress(indicator)
-			.executeSynchronously()
-
-	/** The whole search, minus the threading. Must run inside a read action; split out so tests can call it directly. */
-	fun collect(project: Project, scope: GlobalSearchScope, indicator: ProgressIndicator): List<KoreElement> {
-		indicator.checkCanceled()
-
-		val declarationsByFile = KoreDeclarationIndex.findAll(project, scope).groupBy({ it.first }, { it.second })
+	/** Must run inside a smart-mode read action on a background thread; the caller owns the threading so tests can supply their own. */
+	fun collect(project: Project, scope: GlobalSearchScope): List<KoreElement> {
 		val psiManager = PsiManager.getInstance(project)
-		val documentManager = FileDocumentManager.getInstance()
-
-		val confirmed = declarationsByFile.flatMap { (file, declarations) ->
-			indicator.checkCanceled()
+		val confirmed = KoreDeclarationIndex.findAll(scope).flatMap { (file, declarations) ->
+			ProgressManager.checkCanceled()
 			val ktFile = psiManager.findFile(file) as? KtFile ?: return@flatMap emptyList()
-			confirmKoreDeclarations(ktFile, file, documentManager.getDocument(file), declarations)
+			confirmKoreDeclarations(ktFile, file, declarations)
 		}
 
-		val owners = resolveExtensionOwners(project, scope, confirmed, indicator)
+		val owners = resolveExtensionOwners(project, scope, confirmed)
 		val soleDataPack = confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }
 			.map { it.data.name }
 			.distinct()
@@ -74,23 +60,25 @@ internal data object KoreElementFinder {
 	private fun confirmKoreDeclarations(
 		ktFile: KtFile,
 		file: VirtualFile,
-		document: Document?,
 		declarations: List<KoreDeclarationData>,
 	): List<ConfirmedDeclaration> {
 		val confirmed = mutableListOf<ConfirmedDeclaration>()
+		val document = FileDocumentManager.getInstance().getDocument(file)
 
 		try {
 			analyze(ktFile) {
 				for (declaration in declarations) {
-					val call = ktFile.callExpressionAt(declaration) ?: continue
+					val call = ktFile.koreCallAt(declaration.offset, declaration.kind.builderName) ?: continue
 					if (!isKoreCall(call)) continue
 					// Re-read the call now that references resolve: the indexer could not follow a constant out of its file.
 					val data = call.koreDeclarationData(declaration.kind, ResolvingPropertyResolver) ?: continue
-					confirmed += ConfirmedDeclaration(data, file, document, call)
+					val lineNumber = document?.takeIf { data.offset <= it.textLength }?.getLineNumber(data.offset)?.plus(1) ?: -1
+					confirmed += ConfirmedDeclaration(data, file, lineNumber, call)
 				}
 			}
+		} catch (e: ProcessCanceledException) {
+			throw e
 		} catch (e: Exception) {
-			if (e is ProcessCanceledException) throw e
 			LOGGER.warn("Error confirming Kore declarations in ${file.name}", e)
 		}
 
@@ -113,7 +101,6 @@ internal data object KoreElementFinder {
 		project: Project,
 		scope: GlobalSearchScope,
 		confirmed: List<ConfirmedDeclaration>,
-		indicator: ProgressIndicator,
 	): Map<KtNamedFunction, String> {
 		// The inline style attaches everything syntactically, so it never pays for the walk below.
 		if (confirmed.none { it.data.dataPackName == null }) return emptyMap()
@@ -121,9 +108,9 @@ internal data object KoreElementFinder {
 		val owners = mutableMapOf<KtNamedFunction, String>()
 
 		for (root in confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }) {
-			indicator.checkCanceled()
+			ProgressManager.checkCanceled()
 			val body = root.call.lambdaArguments.lastOrNull()?.getLambdaExpression()?.bodyExpression ?: continue
-			for (extension in reachableDataPackExtensions(project, scope, body, indicator)) {
+			for (extension in reachableDataPackExtensions(project, scope, body)) {
 				owners.putIfAbsent(extension, root.data.name)
 			}
 		}
@@ -131,19 +118,16 @@ internal data object KoreElementFinder {
 		return owners
 	}
 
-	private fun reachableDataPackExtensions(
-		project: Project,
-		scope: GlobalSearchScope,
-		root: KtExpression,
-		indicator: ProgressIndicator,
-	): Set<KtNamedFunction> {
+	private fun reachableDataPackExtensions(project: Project, scope: GlobalSearchScope, root: KtExpression): Set<KtNamedFunction> {
 		val visited = LinkedHashSet<KtNamedFunction>()
+		// A datapack body repeats the same callees (`function`, `say`, ...) hundreds of times; each name is looked up once.
+		val queriedNames = HashSet<String>()
 		val frontier = ArrayDeque(listOf(root))
 
 		while (frontier.isNotEmpty()) {
-			indicator.checkCanceled()
+			ProgressManager.checkCanceled()
 			for (call in PsiTreeUtil.findChildrenOfType(frontier.removeFirst(), KtCallExpression::class.java)) {
-				val calleeName = call.calleeName() ?: continue
+				val calleeName = call.calleeName()?.takeIf(queriedNames::add) ?: continue
 				for (candidate in KotlinFunctionShortNameIndex[calleeName, project, scope]) {
 					if (!candidate.isDataPackExtension() || !visited.add(candidate)) continue
 					candidate.bodyExpression?.let(frontier::addLast)
@@ -159,22 +143,12 @@ internal data object KoreElementFinder {
 private class ConfirmedDeclaration(
 	val data: KoreDeclarationData,
 	private val file: VirtualFile,
-	private val document: Document?,
+	private val lineNumber: Int,
 	val call: KtCallExpression,
 ) {
-	/** The outermost named function around the declaration - the unit `reachableDataPackExtensions` matches on. */
-	private val container: KtNamedFunction?
-		get() {
-			var current: PsiElement? = call
-			var outermost: KtNamedFunction? = null
-			while (current != null) {
-				if (current is KtNamedFunction) outermost = current
-				current = current.parent
-			}
-			return outermost
-		}
-
 	fun toElement(owners: Map<KtNamedFunction, String>, soleDataPack: String?): KoreElement {
+		// The outermost named function around the declaration is the unit `reachableDataPackExtensions` matches on.
+		val container = PsiTreeUtil.getTopmostParentOfType(call, KtNamedFunction::class.java)
 		val dataPack = data.dataPackName ?: owners[container] ?: soleDataPack ?: UNKNOWN_DATA_PACK
 
 		return KoreElement(
@@ -187,16 +161,9 @@ private class ConfirmedDeclaration(
 			fileUrl = file.url,
 			fileName = file.name,
 			offset = data.offset,
-			lineNumber = document?.lineNumberAt(data.offset) ?: -1,
+			lineNumber = lineNumber,
 		)
 	}
-}
-
-/** The indexed offset can be stale after an edit, so the callee name is re-checked before trusting the hit. */
-private fun KtFile.callExpressionAt(declaration: KoreDeclarationData): KtCallExpression? {
-	val leaf = findElementAt(declaration.offset) ?: return null
-	val call = PsiTreeUtil.getParentOfType(leaf, KtCallExpression::class.java, false) ?: return null
-	return call.takeIf { it.calleeName() == declaration.kind.builderName }
 }
 
 /**
@@ -211,5 +178,3 @@ private fun KtNamedFunction.isDataPackExtension(): Boolean {
 }
 
 private fun KtTypeReference?.namesDataPack() = this?.typeElement?.text?.substringAfterLast('.') == DATA_PACK_RECEIVER_NAME
-
-private fun Document.lineNumberAt(offset: Int) = if (offset in 0..textLength) getLineNumber(offset) + 1 else null
