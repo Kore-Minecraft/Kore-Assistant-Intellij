@@ -5,6 +5,8 @@
 ### Added
 
 - Plugin errors in the IDE error dialog can be reported as a GitHub issue prefilled with versions and the stack trace.
+- `function("x")` calls navigate to their declaration with Ctrl+Click, and Find Usages and Rename work from either side, `ns:name` and directories included.
+- The gutter icon on a function declaration lists its `function("x")` calls.
 
 ### Fixed
 

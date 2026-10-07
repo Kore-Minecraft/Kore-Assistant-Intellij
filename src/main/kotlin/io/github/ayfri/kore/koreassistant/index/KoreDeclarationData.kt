@@ -40,7 +40,13 @@ data class KoreDeclarationData(
 	val dataPackName: String?,
 	val isDynamic: Boolean,
 	val offset: Int,
-)
+) {
+	/** What a resource location spells after `ns:`, the directory included: `utils/helper` for `function("helper", directory = "utils")`. */
+	val path get() = directory?.trim('/')?.takeIf(String::isNotEmpty)?.let { "$it/$name" } ?: name
+
+	/** `null` when neither an explicit namespace nor an enclosing `dataPack("x") { }` is visible syntactically. */
+	val effectiveNamespace get() = namespace ?: dataPackName
+}
 
 /**
  * Reads everything the plugin knows about a declaration call. [resolver] decides how far constants are

@@ -5,6 +5,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.*
 import com.intellij.util.io.EnumeratorStringDescriptor
 import io.github.ayfri.kore.koreassistant.psi.LocalPropertyResolver
+import io.github.ayfri.kore.koreassistant.psi.hasFunctionBody
 import io.github.ayfri.kore.koreassistant.psi.koreDeclarationKind
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.psi.KtCallExpression
@@ -38,6 +39,8 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 			override fun visitCallExpression(expression: KtCallExpression) {
 				super.visitCallExpression(expression)
 				val kind = expression.koreDeclarationKind() ?: return
+				// `function("x")` without a body is the `/function` command, which every reader of this index would otherwise have to filter out.
+				if (kind.isFunction && !expression.hasFunctionBody()) return
 				val data = expression.koreDeclarationData(kind, resolver) ?: return
 				result.getOrPut(data.name, ::mutableListOf) += data
 			}
@@ -51,11 +54,35 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 	override fun getValueExternalizer() = KoreDeclarationDataExternalizer
 
 	// Bump on ANY change to the indexer logic, KoreDeclarationKind, or KoreDeclarationDataExternalizer.
-	override fun getVersion() = 5
+	override fun getVersion() = 6
 
 	override fun getInputFilter() = DefaultFileTypeSpecificInputFilter(KotlinFileType.INSTANCE)
 
 	override fun dependsOnFileContent() = true
+
+	/** The declarations indexed under [name] in [scope], grouped by file. */
+	fun find(name: String, scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {
+		val result = HashMap<VirtualFile, MutableList<KoreDeclarationData>>()
+		FileBasedIndex.getInstance().processValues(NAME, name, null, { file, declarations ->
+			result.getOrPut(file, ::mutableListOf) += declarations
+			true
+		}, scope)
+		return result
+	}
+
+	/**
+	 * The declarations written at `namespace:path`, matching [kinds]. Functions are keyed by their bare name and tags or
+	 * other resources by their whole path, so both keys are tried. A declaration whose namespace is not visible syntactically
+	 * matches any namespace, but only when no exact match exists.
+	 */
+	fun findByLocation(namespace: String?, path: String, scope: GlobalSearchScope, kinds: (KoreDeclarationKind) -> Boolean): List<Pair<VirtualFile, KoreDeclarationData>> {
+		val candidates = setOf(path, path.substringAfterLast('/')).flatMap { key ->
+			find(key, scope).flatMap { (file, declarations) -> declarations.map { file to it } }
+		}.filter { (_, data) -> kinds(data.kind) && data.path == path }.distinct()
+
+		val exact = candidates.filter { namespace != null && it.second.effectiveNamespace == namespace }
+		return exact.ifEmpty { candidates.filter { namespace == null || it.second.effectiveNamespace == null } }
+	}
 
 	/** Every declaration indexed in [scope], grouped by the file it was found in. */
 	fun findAll(scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {

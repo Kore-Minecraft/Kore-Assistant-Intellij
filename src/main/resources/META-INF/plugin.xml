@@ -35,6 +35,19 @@
 
         <fileBasedIndex implementation="io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex"/>
 
+        <psi.referenceContributor
+                language="kotlin"
+                implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionReferenceContributor"/>
+        <referencesSearch implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionReferencesSearcher"/>
+        <!-- First, so Kotlin's factory never gets asked about a target that is not a Kotlin declaration. -->
+        <findUsagesHandlerFactory
+                order="first"
+                implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionFindUsagesHandlerFactory"/>
+        <renameInputValidator implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionRenameInputValidator"/>
+        <usageTypeProvider
+                order="first"
+                implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionUsageTypeProvider"/>
+
         <localInspection
                 language="kotlin"
                 shortName="KoreDuplicateDeclaration"

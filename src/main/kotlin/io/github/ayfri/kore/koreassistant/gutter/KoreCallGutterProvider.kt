@@ -11,6 +11,7 @@ import io.github.ayfri.kore.koreassistant.psi.resolvesTo
 import io.github.ayfri.kore.koreassistant.services.KoreLibraryService
 import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.psi.KtCallExpression
 import javax.swing.Icon
 
 /**
@@ -40,7 +41,11 @@ abstract class KoreCallGutterProvider(
 			.setAlignment(GutterIconRenderer.Alignment.CENTER)
 			.setTooltipTitle(tooltipTitle)
 			.setTooltipText(tooltipText)
-			.setTarget(callExpression.valueArguments.firstOrNull()?.getArgumentExpression() ?: element)
+			.withTargets(callExpression, element)
 			.createLineMarkerInfo(element)
 	}
+
+	/** Where clicking the icon goes; the declaration's own name argument unless the subclass has something better to show. */
+	protected open fun NavigationGutterIconBuilder<PsiElement>.withTargets(call: KtCallExpression, element: PsiElement) =
+		setTarget(call.valueArguments.firstOrNull()?.getArgumentExpression() ?: element)
 }
