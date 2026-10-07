@@ -8,6 +8,7 @@
 - `function("x")` calls navigate to their declaration with Ctrl+Click, and Find Usages and Rename work from either side, `ns:name` and directories included.
 - The gutter icon on a function declaration lists its `function("x")` calls.
 - Completion of the project's function names in `function("...")` and of vanilla ids in `item("...")`, `block("...")` and `XxxArgument("...")`, read from your own Kore version.
+- Inspections for unknown vanilla ids (with closest-id fixes), assignments mutating a shared generated enum entry such as `Items.DIAMOND_SWORD.components`, local `^` coordinates mixed with `~` or absolute ones, and invalid macro names.
 
 ### Fixed
 

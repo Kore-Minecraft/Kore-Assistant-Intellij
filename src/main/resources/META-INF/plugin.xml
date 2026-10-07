@@ -86,6 +86,42 @@
                 enabledByDefault="true"
                 level="ERROR"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.CraftingShapedInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreUnknownVanillaId"
+                displayName="Unknown vanilla id"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.UnknownVanillaIdInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreGeneratedEnumMutation"
+                displayName="Mutation of a shared generated enum entry"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.GeneratedEnumMutationInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreMixedCoordinates"
+                displayName="Local coordinates mixed with relative or absolute ones"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.MixedCoordinatesInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreMacroName"
+                displayName="Invalid macro name"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.MacroNameInspection"/>
     </extensions>
 
     <projectListeners>

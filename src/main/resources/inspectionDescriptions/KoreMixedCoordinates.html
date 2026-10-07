@@ -1,0 +1,13 @@
+<html>
+<body>
+Reports a <code>vec3(...)</code> or <code>coordinate(...)</code> mixing local <code>^</code> components with relative
+<code>~</code> or absolute ones, such as <code>vec3(1.localPos, 2.pos, 0.relativePos)</code>.
+<p>
+Minecraft only accepts local coordinates all together; Kore writes <code>^1 2 ~</code> as given and the whole function
+fails to load.
+</p>
+<p>
+Components whose type is not written out (a variable, a computed value) are skipped.
+</p>
+</body>
+</html>

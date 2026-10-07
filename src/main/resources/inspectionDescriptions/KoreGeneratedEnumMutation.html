@@ -1,0 +1,10 @@
+<html>
+<body>
+Reports assignments to a member of a Kore generated enum entry, such as <code>Items.DIAMOND_SWORD.components = ...</code>
+or <code>Blocks.STONE.states["axis"] = "y"</code>.
+<p>
+Enum entries are singletons: the change applies to every use of the entry in the datapack, including recipes and loot
+tables generated afterwards. Call the entry instead, <code>Items.DIAMOND_SWORD { ... }</code>, to get a modified copy.
+</p>
+</body>
+</html>

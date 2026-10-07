@@ -1,0 +1,14 @@
+<html>
+<body>
+Reports a vanilla id Minecraft does not know, such as <code>item("diamond_swrod")</code>, <code>block("stonee")</code> or
+<code>EntityTypeArgument("zombi")</code>, and offers the closest existing ids.
+<p>
+Ids are checked against the registries of the Kore version the module depends on (<code>Items</code>, <code>Blocks</code>,
+<code>EntityTypes</code>, ...), so they match the Minecraft version you target. Kore writes the id as given; Minecraft then
+drops the recipe, loot table or command using it.
+</p>
+<p>
+Ids in another namespace than <code>minecraft</code>, and ids built at runtime, are skipped.
+</p>
+</body>
+</html>

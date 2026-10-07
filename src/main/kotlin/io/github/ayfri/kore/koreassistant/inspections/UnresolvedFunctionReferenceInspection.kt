@@ -121,7 +121,7 @@ private val KoreElement.isFunctionTag get() = kind.resourceFolder == FUNCTION_TA
 /** The part after `ns:` (and `#`), i.e. what a call spells as its name, directory included. */
 private val KoreElement.path get() = resourceLocation.orEmpty().substringAfter(':')
 
-private fun editDistance(a: String, b: String): Int {
+internal fun editDistance(a: String, b: String): Int {
 	var previous = IntArray(b.length + 1) { it }
 	for (i in 1..a.length) {
 		val current = IntArray(b.length + 1).also { it[0] = i }
@@ -133,7 +133,7 @@ private fun editDistance(a: String, b: String): Int {
 	return previous[b.length]
 }
 
-private class ChangeNameFix(private val name: String) : LocalQuickFix {
+internal class ChangeNameFix(private val name: String) : LocalQuickFix {
 	override fun getFamilyName() = "Change to '$name'"
 
 	override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
