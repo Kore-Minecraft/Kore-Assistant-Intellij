@@ -50,6 +50,8 @@
                 order="first"
                 implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionUsageTypeProvider"/>
 
+        <consoleFilterProvider implementation="io.github.ayfri.kore.koreassistant.console.KoreConsoleFilterProvider"/>
+
         <codeInsight.declarativeInlayProvider
                 language="kotlin"
                 implementationClass="io.github.ayfri.kore.koreassistant.hints.KoreLocationInlayHintsProvider"
