@@ -96,6 +96,12 @@ class UnresolvedFunctionReferenceInspectionTest : BasePlatformTestCase() {
 		)
 	}
 
+	fun testReadsTheNamespaceOfANamespacedName() {
+		myFixture.configureByText("Main.kt", "$HEADER\t\tfunction(\"caller\") {\n\t\t\tfunction(\"other:in_other\")\n\t\t\tfunction(\"other:missing\")\n\t\t}\n\t}\n}\n")
+		val errors = myFixture.doHighlighting().filter { it.inspectionToolId == "KoreUnresolvedFunctionReference" }.map { it.description }
+		assertEquals(listOf("Function 'other:missing' is not declared in this project"), errors)
+	}
+
 	private fun checkFix(call: String, fix: String, expectedCall: String) {
 		myFixture.configureByText("Main.kt", "$HEADER\t\tfunction(\"caller\") {\n\t\t\t${call.replace("(", "(<caret>")}\n\t\t}\n\t}\n}\n")
 		myFixture.launchAction(myFixture.findSingleIntention(fix))

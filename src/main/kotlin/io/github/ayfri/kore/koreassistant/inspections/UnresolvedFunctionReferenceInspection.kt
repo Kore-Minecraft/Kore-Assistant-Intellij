@@ -97,6 +97,9 @@ private fun KtCallExpression.functionReference(namespaceFirst: Boolean): Functio
 	val name = nameExpression.koreStringValue(ResolvingPropertyResolver)?.takeUnless { it.isDynamic } ?: return null
 	val group = (namedArgument(GROUP_PARAMETER) ?: positionalArgument(if (namespaceFirst) 2 else 1))?.text == "true"
 
+	// The name-only overload keeps an already namespaced name as is (`functionId` in Kore's `commands/Function.kt`).
+	if (!namespaceFirst && ':' in name.text) return FunctionReference(nameExpression, name.text.substringBefore(':').removePrefix("#"), name.text.substringAfter(':'), group)
+
 	val namespace = if (namespaceFirst) {
 		(namedArgument(NAMESPACE_PARAMETER) ?: positionalArgument(0))?.koreStringValue(ResolvingPropertyResolver)?.takeUnless { it.isDynamic }?.text
 	} else {

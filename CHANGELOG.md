@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- `function("other:helper")` is no longer reported as an unresolved function.
 - The Kore Elements tool window no longer fails with "Error finding elements" after a search.
 
 ### Maintenance
