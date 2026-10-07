@@ -12,6 +12,7 @@
 - Live templates `dpmain`, `load`, `tick`, `exec`, `lt`, `adv`, `shaped` and `ftag` that import the Kore builders they use, and a New > Kore DataPack file.
 - Inlay hints showing each declaration's resource location after its arguments, or its output file path (Settings > Editor > Inlay Hints).
 - Resource locations Kore prints in a run console link back to their declaration.
+- An opt-in notification when a newer Kore version is released (Settings > Tools > Kore Assistant).
 
 ### Fixed
 
