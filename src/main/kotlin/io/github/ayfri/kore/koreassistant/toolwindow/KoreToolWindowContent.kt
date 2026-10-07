@@ -9,7 +9,6 @@ import com.intellij.openapi.application.smartReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
@@ -157,19 +156,12 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 				tree.emptyText.text = "Finding Kore elements..."
 			}
 
-			try {
-				// smartReadAction waits out indexing and restarts on a pending write action, so no dumb-mode retry loop is needed.
-				val found = withBackgroundProgress(project, "Finding Kore Elements") {
+			// smartReadAction waits out indexing and restarts on a pending write action, so no dumb-mode retry loop is needed.
+			val found = try {
+				withBackgroundProgress(project, "Finding Kore Elements") {
 					smartReadAction(project) { KoreElementFinder.collect(project, GlobalSearchScope.projectScope(project)) }
 				}
-				withContext(Dispatchers.UI) {
-					elements = found
-					rebuildTree()
-					tree.setPaintBusy(false)
-				}
 			} catch (e: CancellationException) {
-				throw e
-			} catch (e: ProcessCanceledException) {
 				throw e
 			} catch (e: Exception) {
 				LOGGER.error("Error finding Kore elements", e)
@@ -177,6 +169,13 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 					tree.emptyText.text = "Error finding elements. See logs."
 					tree.setPaintBusy(false)
 				}
+				return@launch
+			}
+
+			withContext(Dispatchers.UI) {
+				elements = found
+				rebuildTree()
+				tree.setPaintBusy(false)
 			}
 		}
 	}

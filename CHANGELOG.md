@@ -6,6 +6,10 @@
 
 - The Kore Elements tool window no longer fails with "Error finding elements" after a search.
 
+### Maintenance
+
+- Updated Gradle to 9.8.0 and cleaned up deprecated platform API usage.
+
 ## [0.0.5] - 2026-09-21
 
 ### Added
