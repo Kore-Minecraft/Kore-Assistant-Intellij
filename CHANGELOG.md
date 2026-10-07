@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Plugin errors in the IDE error dialog can be reported as a GitHub issue prefilled with versions and the stack trace.
+
 ### Fixed
 
 - The Kore Elements tool window no longer fails with "Error finding elements" after a search.
