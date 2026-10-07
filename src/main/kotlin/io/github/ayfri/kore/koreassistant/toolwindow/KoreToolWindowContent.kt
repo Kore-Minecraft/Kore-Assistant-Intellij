@@ -46,6 +46,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeModel
+import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 
 // Deep enough to show every namespace's folders without exploding a datapack with thousands of elements.
@@ -184,14 +185,22 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 		val filter = filterField.text.trim()
 		val visible = elements.filter { it.matches(filter) }
 
-		treeModel.setRoot(buildKoreTree(visible, groupBy, sortBy, sortOrder))
-		TreeUtil.expand(tree, DEFAULT_EXPANSION_DEPTH)
+		val root = buildKoreTree(visible, groupBy, sortBy, sortOrder)
+		treeModel.setRoot(root)
+		expandDefaultLevels(root)
 
 		tree.emptyText.text = when {
 			elements.isEmpty() -> "No Kore elements found."
 			visible.isEmpty() -> "No element matches '$filter'."
 			else -> ""
 		}
+	}
+
+	/** Walks the model by hand: `TreeUtil.expand` takes a read lock, which `Dispatchers.UI` forbids. */
+	private fun expandDefaultLevels(node: DefaultMutableTreeNode) {
+		if (node.isLeaf || node.level >= DEFAULT_EXPANSION_DEPTH) return
+		tree.expandPath(TreePath(node.path))
+		for (child in node.children()) expandDefaultLevels(child as DefaultMutableTreeNode)
 	}
 
 	private fun selectedNode() = (tree.selectionPath?.lastPathComponent as? DefaultMutableTreeNode)?.koreNode

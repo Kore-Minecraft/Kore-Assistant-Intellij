@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The Kore Elements tool window no longer fails with "Error finding elements" after a search.
+
 ## [0.0.5] - 2026-09-21
 
 ### Added
