@@ -1,0 +1,36 @@
+name: Feature proposal
+description: Suggest a new feature or an improvement for Kore Assistant.
+title: "[FEATURE] "
+labels: [ enhancement ]
+assignees:
+  - Ayfri
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this feature request!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature description
+      description: What the plugin should do, and in which part of the IDE (editor, tool window, inspections, run integration...).
+      placeholder: "Completion of function names inside `function(\"...\")` commands."
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: The datapack code or workflow where this would help.
+
+  - type: checkboxes
+    id: duplication-validation
+    attributes:
+      label: My issue is not duplicated
+      description: I have searched the issues of this repository and believe that this is not a duplicate.
+      options:
+        - label: This is not a duplicate
+          required: true

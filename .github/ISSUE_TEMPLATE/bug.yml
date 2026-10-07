@@ -1,0 +1,76 @@
+name: Report a bug
+description: Report a bug or an IDE error coming from Kore Assistant.
+title: "[BUG] "
+labels: [ bug ]
+assignees:
+  - Ayfri
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        IDE errors reported through *Open a GitHub Issue* arrive here with the versions and stack trace already filled in.
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Settings | Plugins | Kore Assistant.
+      placeholder: 0.0.5
+    validations:
+      required: true
+
+  - type: input
+    id: ide-version
+    attributes:
+      label: IDE version
+      description: Help | About, the build number included.
+      placeholder: IntelliJ IDEA 2026.2 (IU-262.1234.56)
+    validations:
+      required: true
+
+  - type: input
+    id: kore-version
+    attributes:
+      label: Kore version
+      description: The Kore dependency of your project, if relevant.
+      placeholder: 2.14.0-26.2
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+      placeholder: "I opened the Kore Elements tool window and it showed 'Error finding elements'."
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: How can we reproduce this issue?
+      description: Steps or a minimal datapack snippet triggering the issue.
+      placeholder: "1. Declare `dataPack(\"x\") { ... }`\n2. Open the Kore Elements tool window\n3. See error"
+
+  - type: textarea
+    id: stacktrace
+    attributes:
+      label: Stack trace
+      description: From the IDE error dialog or `idea.log`, if any.
+      render: text
+
+  - type: textarea
+    id: extra-info
+    attributes:
+      label: Extra information
+      description: Anything else that helps, screenshots or animated GIFs included.
+
+  - type: checkboxes
+    id: duplication-validation
+    attributes:
+      label: My issue is not duplicated
+      description: I have searched the issues of this repository and believe that this is not a duplicate.
+      options:
+        - label: This is not a duplicate
+          required: true

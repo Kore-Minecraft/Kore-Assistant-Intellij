@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Kore library issues
+    url: https://github.com/Ayfri/Kore/issues/new/choose
+    about: Bugs and features of the Kore library itself, not of the IDE plugin.
+  - name: Kore documentation
+    url: https://kore.ayfri.com
+    about: Guides and reference for writing datapacks with Kore.
+  - name: Discord
+    url: https://discord.gg/BySjRNQ9Je
+    about: Questions and help from the community.
