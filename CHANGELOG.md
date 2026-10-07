@@ -10,6 +10,7 @@
 - Completion of the project's function names in `function("...")` and of vanilla ids in `item("...")`, `block("...")` and `XxxArgument("...")`, read from your own Kore version.
 - Inspections for unknown vanilla ids (with closest-id fixes), assignments mutating a shared generated enum entry such as `Items.DIAMOND_SWORD.components`, local `^` coordinates mixed with `~` or absolute ones, and invalid macro names.
 - Live templates `dpmain`, `load`, `tick`, `exec`, `lt`, `adv`, `shaped` and `ftag` that import the Kore builders they use, and a New > Kore DataPack file.
+- Inlay hints showing each declaration's resource location after its arguments, or its output file path (Settings > Editor > Inlay Hints).
 
 ### Fixed
 

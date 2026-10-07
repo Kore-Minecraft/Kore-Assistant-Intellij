@@ -50,6 +50,27 @@
                 order="first"
                 implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionUsageTypeProvider"/>
 
+        <codeInsight.declarativeInlayProvider
+                language="kotlin"
+                implementationClass="io.github.ayfri.kore.koreassistant.hints.KoreLocationInlayHintsProvider"
+                isEnabledByDefault="true"
+                group="OTHER_GROUP"
+                providerId="kore.locations"
+                bundle="messages.KoreBundle"
+                nameKey="inlay.kore.locations.name"
+                descriptionKey="inlay.kore.locations.description">
+            <option bundle="messages.KoreBundle"
+                    optionId="location"
+                    enabledByDefault="true"
+                    nameKey="inlay.kore.locations.option.location"
+                    descriptionKey="inlay.kore.locations.option.location.description"/>
+            <option bundle="messages.KoreBundle"
+                    optionId="path"
+                    enabledByDefault="false"
+                    nameKey="inlay.kore.locations.option.path"
+                    descriptionKey="inlay.kore.locations.option.path.description"/>
+        </codeInsight.declarativeInlayProvider>
+
         <!-- First, so it can stop the file-name variants the platform adds to every string. -->
         <completion.contributor
                 language="kotlin"
