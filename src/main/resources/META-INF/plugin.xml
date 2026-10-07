@@ -48,6 +48,17 @@
                 order="first"
                 implementation="io.github.ayfri.kore.koreassistant.references.KoreFunctionUsageTypeProvider"/>
 
+        <!-- First, so it can stop the file-name variants the platform adds to every string. -->
+        <completion.contributor
+                language="kotlin"
+                order="first"
+                implementationClass="io.github.ayfri.kore.koreassistant.completion.KoreStringCompletionContributor"/>
+        <!-- First, so Kotlin's own confidence does not veto the popup inside the strings this plugin completes. -->
+        <completion.confidence
+                language="kotlin"
+                order="first"
+                implementationClass="io.github.ayfri.kore.koreassistant.completion.KoreStringCompletionConfidence"/>
+
         <localInspection
                 language="kotlin"
                 shortName="KoreDuplicateDeclaration"
