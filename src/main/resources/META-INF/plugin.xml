@@ -30,6 +30,8 @@
                 implementation="io.github.ayfri.kore.koreassistant.toolwindow.KoreToolWindowRegistrar"/>
 
         <defaultLiveTemplates file="/liveTemplates/Kore.xml"/>
+        <liveTemplateOptionalProcessor implementation="io.github.ayfri.kore.koreassistant.templates.KoreTemplateImportProcessor"/>
+        <internalFileTemplate name="Kore DataPack"/>
 
         <errorHandler implementation="io.github.ayfri.kore.koreassistant.diagnostic.KoreErrorReportSubmitter"/>
 
@@ -123,6 +125,12 @@
                 level="ERROR"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.MacroNameInspection"/>
     </extensions>
+
+    <actions>
+        <action id="Kore.NewDataPack" class="io.github.ayfri.kore.koreassistant.templates.NewKoreDataPackAction">
+            <add-to-group group-id="NewGroup" anchor="last"/>
+        </action>
+    </actions>
 
     <projectListeners>
         <listener class="io.github.ayfri.kore.koreassistant.toolwindow.KoreRootsListener"

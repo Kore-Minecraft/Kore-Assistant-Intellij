@@ -1,0 +1,15 @@
+#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}
+
+#end
+import io.github.ayfri.kore.dataPack
+import io.github.ayfri.kore.functions.load
+
+fun main() {
+    dataPack("${PACK_NAME}") {
+        // The Kore Gradle plugin passes its output directory here; a plain run writes to `out`.
+        path(System.getProperty("kore.output") ?: "out")
+
+        load {
+        }
+    }.generate()
+}

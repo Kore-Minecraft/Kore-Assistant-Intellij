@@ -6,10 +6,76 @@
         </context>
     </template>
 
+    <template name="dpmain" value="fun main() {&#10;    io.github.ayfri.kore.dataPack(&quot;$NAME$&quot;) {&#10;        path(System.getProperty(&quot;kore.output&quot;) ?: &quot;out&quot;)&#10;&#10;        $END$&#10;    }.generate()&#10;}" description="Create a main function generating a Kore datapack, into the Kore Gradle plugin's output when run by it" toReformat="true" toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="&quot;my_pack&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_TOPLEVEL" value="true"/>
+        </context>
+    </template>
+
     <template name="fn" value="function(&quot;$PATH$&quot;) {&#10;    $END$&#10;}" description="Create a Kore Function" toReformat="true" toShortenFQNames="true">
         <variable name="PATH" expression="" defaultValue="&quot;&quot;" alwaysStopAt="true"/>
         <context>
             <option name="KOTLIN" value="true"/>
+        </context>
+    </template>
+
+    <template name="load" value="io.github.ayfri.kore.functions.load {&#10;    $END$&#10;}" description="Create a Kore function run when the datapack loads" toReformat="true" toShortenFQNames="true">
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="tick" value="io.github.ayfri.kore.functions.tick {&#10;    $END$&#10;}" description="Create a Kore function run every tick" toReformat="true" toShortenFQNames="true">
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="exec" value="io.github.ayfri.kore.commands.execute.execute {&#10;    asTarget($TARGET$)&#10;    run {&#10;        $END$&#10;    }&#10;}" description="Create a Kore execute command running a block as the target" toReformat="true" toShortenFQNames="true">
+        <variable name="TARGET" expression="" defaultValue="&quot;io.github.ayfri.kore.arguments.types.literals.allEntities()&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="lt" value="io.github.ayfri.kore.features.loottables.lootTable(&quot;$NAME$&quot;) {&#10;    io.github.ayfri.kore.features.loottables.pool {&#10;        io.github.ayfri.kore.features.loottables.entries {&#10;            io.github.ayfri.kore.features.loottables.entries.item(io.github.ayfri.kore.generated.Items.$ITEM$)&#10;        }&#10;    }&#10;    $END$&#10;}" description="Create a Kore loot table with one pool dropping an item" toReformat="true" toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="&quot;my_loot_table&quot;" alwaysStopAt="true"/>
+        <variable name="ITEM" expression="" defaultValue="&quot;DIAMOND&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="adv" value="io.github.ayfri.kore.features.advancements.advancement(&quot;$NAME$&quot;) {&#10;    io.github.ayfri.kore.features.advancements.display(io.github.ayfri.kore.generated.Items.$ICON$, &quot;$TITLE$&quot;, &quot;$DESCRIPTION$&quot;)&#10;    $END$&#10;}" description="Create a Kore advancement with its display" toReformat="true" toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="&quot;my_advancement&quot;" alwaysStopAt="true"/>
+        <variable name="ICON" expression="" defaultValue="&quot;DIAMOND&quot;" alwaysStopAt="true"/>
+        <variable name="TITLE" expression="" defaultValue="&quot;Title&quot;" alwaysStopAt="true"/>
+        <variable name="DESCRIPTION" expression="" defaultValue="&quot;Description&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="shaped" value="io.github.ayfri.kore.features.recipes.recipes {&#10;    io.github.ayfri.kore.features.recipes.types.craftingShaped(&quot;$NAME$&quot;) {&#10;        io.github.ayfri.kore.features.recipes.types.pattern(&#10;            &quot;$ROW1$&quot;,&#10;            &quot;$ROW2$&quot;,&#10;            &quot;$ROW3$&quot;,&#10;        )&#10;        io.github.ayfri.kore.features.recipes.types.key(&quot;$KEY$&quot;, io.github.ayfri.kore.generated.Items.$INGREDIENT$)&#10;        io.github.ayfri.kore.features.recipes.types.result(io.github.ayfri.kore.generated.Items.$RESULT$)&#10;        $END$&#10;    }&#10;}" description="Create a Kore shaped crafting recipe" toReformat="true" toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="&quot;my_recipe&quot;" alwaysStopAt="true"/>
+        <variable name="ROW1" expression="" defaultValue="&quot;###&quot;" alwaysStopAt="true"/>
+        <variable name="ROW2" expression="" defaultValue="&quot;# #&quot;" alwaysStopAt="true"/>
+        <variable name="ROW3" expression="" defaultValue="&quot;###&quot;" alwaysStopAt="true"/>
+        <variable name="KEY" expression="" defaultValue="&quot;#&quot;" alwaysStopAt="true"/>
+        <variable name="INGREDIENT" expression="" defaultValue="&quot;DIAMOND&quot;" alwaysStopAt="true"/>
+        <variable name="RESULT" expression="" defaultValue="&quot;DIAMOND_BLOCK&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="ftag" value="io.github.ayfri.kore.features.tags.functionTag(&quot;$NAME$&quot;, namespace = &quot;$NAMESPACE$&quot;) {&#10;    this += &quot;$ENTRY$&quot;&#10;    $END$&#10;}" description="Create a Kore function tag, e.g. minecraft:load" toReformat="true" toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="&quot;load&quot;" alwaysStopAt="true"/>
+        <variable name="NAMESPACE" expression="" defaultValue="&quot;minecraft&quot;" alwaysStopAt="true"/>
+        <variable name="ENTRY" expression="" defaultValue="&quot;my_pack:load&quot;" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_STATEMENT" value="true"/>
         </context>
     </template>
 </templateSet>
