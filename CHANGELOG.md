@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-07
+
 ### Added
 
 - Plugin errors in the IDE error dialog can be reported as a GitHub issue prefilled with versions and the stack trace.
@@ -135,7 +137,8 @@
 - Gutter icon provider for Kore functions.
 - "Kore Elements" tool window to browse Kore components in the project.
 
-[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.5...v0.1.0
 [0.0.5]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.2...v0.0.3
