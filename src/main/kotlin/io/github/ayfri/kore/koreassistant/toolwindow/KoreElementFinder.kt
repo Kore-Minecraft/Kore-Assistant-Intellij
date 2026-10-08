@@ -100,36 +100,37 @@ internal data object KoreElementFinder {
 	 * `dataPack("name") { }` to read a name from. Walking out from each datapack block into the extensions it
 	 * calls (transitively) recovers the owner; anything still unattached falls back to the project's only
 	 * datapack, if there is exactly one.
+	 *
+	 * Callees are matched by name, so an extension is often reachable from several datapacks: it goes to the one reaching
+	 * it in the fewest calls, the one declared in its own file on a tie, then the first in source order.
 	 */
 	private fun resolveExtensionOwners(confirmed: List<ConfirmedDeclaration>): Map<KtNamedFunction, String> {
 		// The inline style attaches everything syntactically, so it never pays for the walk below.
 		if (confirmed.none { it.data.dataPackName == null }) return emptyMap()
 
-		val owners = mutableMapOf<KtNamedFunction, String>()
+		val owners = HashMap<KtNamedFunction, String>()
+		var level = confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }
+			.sortedWith(compareBy({ it.fileUrl }, { it.data.offset }))
+			.mapNotNull { root -> root.call.lambdaArguments.lastOrNull()?.getLambdaExpression()?.bodyExpression?.let { Reach(it, root) } }
 
-		for (root in confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }) {
+		while (level.isNotEmpty()) {
 			ProgressManager.checkCanceled()
-			val body = root.call.lambdaArguments.lastOrNull()?.getLambdaExpression()?.bodyExpression ?: continue
-			for (extension in reachableDataPackExtensions(body)) {
-				owners.putIfAbsent(extension, root.data.name)
+			val claims = LinkedHashMap<KtNamedFunction, Reach>()
+			for (reach in level) for (candidate in reach.body.calledDataPackFunctions()) {
+				if (candidate in owners) continue
+				val claim = claims[candidate]
+				if (claim == null || !claim.isFrom(candidate) && reach.isFrom(candidate)) claims[candidate] = reach
 			}
+			claims.forEach { (extension, reach) -> owners[extension] = reach.root.data.name }
+			level = claims.mapNotNull { (extension, reach) -> extension.bodyExpression?.let { Reach(it, reach.root) } }
 		}
 
 		return owners
 	}
 
-	private fun reachableDataPackExtensions(root: KtExpression): Set<KtNamedFunction> {
-		val visited = LinkedHashSet<KtNamedFunction>()
-		val frontier = ArrayDeque(listOf(root))
-
-		while (frontier.isNotEmpty()) {
-			ProgressManager.checkCanceled()
-			for (candidate in frontier.removeFirst().calledDataPackFunctions()) {
-				if (visited.add(candidate)) candidate.bodyExpression?.let(frontier::addLast)
-			}
-		}
-
-		return visited
+	/** A body the walk got to from [root]. */
+	private class Reach(val body: KtExpression, val root: ConfirmedDeclaration) {
+		fun isFrom(extension: KtNamedFunction) = root.call.containingFile == extension.containingFile
 	}
 
 	/** The project functions taking a `DataPack` that [this] body may call, matched by callee name. */
@@ -146,7 +147,7 @@ internal data object KoreElementFinder {
 /** A declaration that resolved into Kore, still holding the PSI the datapack-owner walk needs. */
 private class ConfirmedDeclaration(
 	val data: KoreDeclarationData,
-	private val fileUrl: String,
+	val fileUrl: String,
 	private val fileName: String,
 	private val lineNumber: Int,
 	val call: KtCallExpression,

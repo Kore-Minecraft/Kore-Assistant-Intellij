@@ -10,6 +10,10 @@
 
 - After an edit, the Kore Elements tool window, inspections and inlay hints only re-analyze the edited file instead of the whole project, several times faster on large projects.
 
+### Fixed
+
+- A `DataPack` extension reachable from several datapacks is attributed to the one calling it most directly, instead of an arbitrary one.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

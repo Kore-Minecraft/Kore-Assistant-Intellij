@@ -43,11 +43,48 @@ private val MAIN_KT = """
 	fun fromParameter(pack: DataPack) = pack.function("param_based") { }
 """.trimIndent()
 
+/** `relay` puts `shared` two calls away from `far`, one from `near`; `local` is one call from both `far` and `home`. */
+private val FAR_KT = """
+	import io.github.ayfri.kore.DataPack
+	import io.github.ayfri.kore.dataPack
+
+	fun far() = dataPack("far") { relay(); local() }
+	fun DataPack.relay() = shared()
+""".trimIndent()
+
+private val NEAR_KT = """
+	import io.github.ayfri.kore.DataPack
+	import io.github.ayfri.kore.dataPack
+	import io.github.ayfri.kore.function
+
+	fun near() = dataPack("near") { shared() }
+	fun home() = dataPack("home") { local() }
+	fun DataPack.local() = function("local_fn") { }
+""".trimIndent()
+
+private val SHARED_KT = """
+	import io.github.ayfri.kore.DataPack
+	import io.github.ayfri.kore.function
+
+	fun DataPack.shared() = function("shared_fn") { }
+""".trimIndent()
+
 class KoreDataPackLayoutTest : BasePlatformTestCase() {
 	private fun find(): Map<String, KoreElement> {
 		myFixture.addFileToProject("kore.kt", FAKE_KORE)
 		myFixture.configureByText("Main.kt", MAIN_KT)
+		return collect()
+	}
 
+	private fun findShared(): Map<String, KoreElement> {
+		myFixture.addFileToProject("kore.kt", FAKE_KORE)
+		myFixture.addFileToProject("Far.kt", FAR_KT)
+		myFixture.addFileToProject("Near.kt", NEAR_KT)
+		myFixture.addFileToProject("Shared.kt", SHARED_KT)
+		return collect()
+	}
+
+	private fun collect(): Map<String, KoreElement> {
 		return ApplicationManager.getApplication()
 			.executeOnPooledThread<List<KoreElement>> {
 				runReadActionBlocking {
@@ -68,5 +105,13 @@ class KoreDataPackLayoutTest : BasePlatformTestCase() {
 
 	fun testFollowsHelpersTakingTheDataPackAsAParameter() {
 		assertEquals("first", find().getValue("param_based").dataPackName)
+	}
+
+	fun testGivesASharedExtensionToTheDataPackCallingItMostDirectly() {
+		assertEquals("near", findShared().getValue("shared_fn").dataPackName)
+	}
+
+	fun testBreaksATieWithTheDataPackDeclaredInTheExtensionsFile() {
+		assertEquals("home", findShared().getValue("local_fn").dataPackName)
 	}
 }
