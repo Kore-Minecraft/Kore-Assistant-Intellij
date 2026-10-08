@@ -19,6 +19,8 @@
 - An advancement's `tick("x")` trigger is no longer listed as a tick function.
 - The unresolved function quick-fixes keep a typed `ns:` prefix, create the missing function in the namespace the call names, and no longer add a namespace argument to an already namespaced name.
 - Function name completion keeps a typed `ns:` prefix, and `function("ns", "...")` only offers that namespace's functions.
+- Find Usages in the Kore Elements tool window lists a function's `function("x")` calls, and for other elements the usages of the Kotlin function declaring them instead of nothing.
+- The hover card of a nested folder such as `tags/function` no longer repeats part of its path.
 
 ### Maintenance
 

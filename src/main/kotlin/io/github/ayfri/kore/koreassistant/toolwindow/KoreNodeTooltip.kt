@@ -43,7 +43,7 @@ private fun KoreTreeNode.definition() = when (this) {
 	is KoreElementNode -> "${element.kind.builderName}(<b>${element.name.escaped()}</b>)"
 	is KoreDataPackNode -> "dataPack(<b>${label.escaped()}</b>)"
 	is KoreNamespaceNode -> "namespace = <b>${label.escaped()}</b>"
-	is KoreFolderNode -> "${outputPath.substringBeforeLast('/').escaped()}/<b>${label.escaped()}</b>"
+	is KoreFolderNode -> "data/${namespace.escaped()}/<b>${label.escaped()}</b>"
 	is KoreFileNode -> "<b>${label.escaped()}</b>"
 }
 

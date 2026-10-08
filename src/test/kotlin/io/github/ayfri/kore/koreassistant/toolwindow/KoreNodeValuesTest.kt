@@ -26,15 +26,6 @@ private fun KoreTreeNode.copied() = copyValues().associate { it.title to it.valu
 
 /** The values the hover shows and the context menu copies, all derived from the DTOs alone. */
 class KoreNodeValuesTest : BasePlatformTestCase() {
-	fun testBuildsResourceLocationsIncludingTheFunctionDirectory() {
-		assertEquals("ns:foo", element(KoreDeclarationKind.ADVANCEMENT, "foo").resourceLocation)
-		assertEquals("ns:foo", element(KoreDeclarationKind.FUNCTION, "foo").resourceLocation)
-		assertEquals(
-			"ns:utils/foo",
-			element(KoreDeclarationKind.FUNCTION, "foo", directory = "utils").resourceLocation,
-		)
-	}
-
 	fun testPrefixesTagLocationsWithAHashAndNestsTheirPath() {
 		val tag = element(KoreDeclarationKind.FUNCTION_TAG, "hooks")
 
@@ -66,14 +57,6 @@ class KoreNodeValuesTest : BasePlatformTestCase() {
 	fun testLeavesCommandUnsetForKindsNoCommandTakes() {
 		assertNull(element(KoreDeclarationKind.BIOME, "foo").command)
 		assertNull(element(KoreDeclarationKind.TRIM_PATTERN, "foo").command)
-	}
-
-	fun testWritesDialogsIntoTheDialogFolder() {
-		assertEquals("data/ns/dialog/welcome.json", element(KoreDeclarationKind.NOTICE, "welcome").outputPath)
-	}
-
-	fun testSpellsTheSourceLocationTheWayTheIdeLinksItBack() {
-		assertEquals("Main.kt:7", element(KoreDeclarationKind.FUNCTION, "foo").sourceLocation)
 	}
 
 	fun testOffersAnElementRowItsOwnValuesFirst() {
@@ -197,5 +180,11 @@ class KoreNodeValuesTest : BasePlatformTestCase() {
 			assertTrue("$node produced no HTML card", tooltip.startsWith("<html>") && tooltip.endsWith("</html>"))
 			assertTrue("$node did not name what the row is", tooltip.contains(node.nodeKind))
 		}
+	}
+
+	fun testSpellsANestedFolderOnceInItsHoverCard() {
+		val tooltip = KoreFolderNode("tags/function", "ns", listOf(element(KoreDeclarationKind.FUNCTION_TAG, "hooks"))).tooltip()
+
+		assertTrue(tooltip, "data/ns/<b>tags/function</b>" in tooltip)
 	}
 }

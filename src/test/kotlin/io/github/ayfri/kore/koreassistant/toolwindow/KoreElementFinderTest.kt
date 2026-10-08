@@ -4,6 +4,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.references.KoreFunctionTarget
+import org.jetbrains.kotlin.psi.KtNamedFunction
 import javax.swing.tree.DefaultMutableTreeNode
 
 /**
@@ -105,6 +107,14 @@ class KoreElementFinderTest : BasePlatformTestCase() {
 
 		assertTrue(load.isDynamic)
 		assertEquals("data/mypack/function/generated_scopes/load_<hash>.mcfunction", load.outputPath)
+	}
+
+	/** A function row finds its `function("x")` calls, any other row the usages of the Kotlin function declaring it. */
+	fun testFindsUsagesOfAFunctionRowThroughItsKoreTarget() {
+		val found = find()
+
+		assertInstanceOf(found.getValue("helper").findDeclaration(project), KoreFunctionTarget::class.java)
+		assertEquals("main", (found.getValue("root").findDeclaration(project) as KtNamedFunction).name)
 	}
 
 	fun testInheritsTheNamespaceFromTheEnclosingDataPack() {

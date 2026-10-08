@@ -16,10 +16,13 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.parents
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.psi.declarationNameArgument
 import io.github.ayfri.kore.koreassistant.psi.koreCallAt
+import io.github.ayfri.kore.koreassistant.references.KoreFunctionTarget
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import java.awt.datatransfer.StringSelection
 
@@ -115,13 +118,19 @@ private fun aggregate(singular: String, plural: String, values: List<String>): K
 	}
 }
 
-/** What Find Usages targets: the declaration around the call, since the call itself has no usages to find. */
+/**
+ * What Find Usages targets: a function's `function("x")` calls, else the Kotlin declaration around the call, since the call
+ * itself has no usages to find. A lambda is a `KtNamedDeclaration` too, but never has any.
+ */
 fun KoreElement.findDeclaration(project: Project): PsiElement? {
 	val file = VirtualFileManager.getInstance().findFileByUrl(fileUrl)?.takeIf { it.isValid } ?: return null
 	val ktFile = PsiManager.getInstance(project).findFile(file) as? KtFile ?: return null
 	val call = ktFile.koreCallAt(offset, kind.builderName) ?: return null
 
-	return PsiTreeUtil.getParentOfType(call, KtNamedDeclaration::class.java)
+	if (kind.isFunction || kind == KoreDeclarationKind.FUNCTION_TAG) {
+		call.declarationNameArgument()?.let { return KoreFunctionTarget(it, kind == KoreDeclarationKind.FUNCTION_TAG) }
+	}
+	return call.parents(false).filterIsInstance<KtNamedDeclaration>().firstOrNull { it !is KtFunctionLiteral }
 }
 
 private class JumpToSourceAction(private val navigate: () -> Unit) :
