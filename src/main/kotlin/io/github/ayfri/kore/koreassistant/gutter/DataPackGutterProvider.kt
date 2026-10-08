@@ -1,11 +1,15 @@
 package io.github.ayfri.kore.koreassistant.gutter
 
-import io.github.ayfri.kore.koreassistant.KoreIcons
+import com.intellij.psi.PsiElement
 import io.github.ayfri.kore.koreassistant.KoreNames
+import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.psi.asCalleeOf
+import io.github.ayfri.kore.koreassistant.psi.resolvesTo
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.psi.KtCallExpression
 
-class DataPackGutterProvider : KoreCallGutterProvider(
-	fqName = KoreNames.DATA_PACK,
-	icon = KoreIcons.KORE,
-	tooltipTitle = "DataPack Definition",
-	tooltipText = "Kore dataPack definition",
-)
+class DataPackGutterProvider : KoreCallGutterProvider() {
+	override fun declarationAt(element: PsiElement) = element.asCalleeOf(KoreNames.DATA_PACK.shortName())?.let { it to KoreDeclarationKind.DATA_PACK }
+
+	override fun KaSession.confirms(call: KtCallExpression) = resolvesTo(call, KoreNames.DATA_PACK)
+}

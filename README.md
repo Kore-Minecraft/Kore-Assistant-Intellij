@@ -19,7 +19,8 @@ for creating Minecraft datapacks without writing JSON. Features:
 - Completion of your function names in `function("...")` and of vanilla ids in `item("...")`, `block("...")` and
   `XxxArgument("...")`, taken from the Kore version your project uses.
 - A "Kore Elements" tool window listing every kind of Kore declaration as a tree mirroring your generated datapack, with
-  hover previews, copy actions and jump-to-source, plus inlay hints showing where each declaration is generated.
+  hover previews, copy actions and jump-to-source, plus inlay hints showing where each declaration is generated and a
+  gutter icon on every declaration with the same hover.
 - Inspections catching what compiles but breaks in-game: `function("name")` calls to a function declared nowhere (with
   quick-fixes), two declarations writing the same file, invalid `craftingShaped` patterns, unknown vanilla ids,
   `Items.X.components = ...` changing a shared enum entry, `^` coordinates mixed with `~`, and invalid macro names.
@@ -38,8 +39,9 @@ IDEA.
 
 ## Features
 
-* **Gutter Icons:** Easily identify Kore `DataPack` objects and functions with dedicated icons in the editor gutter. The
-  function icon lists every `function("name")` call to that function.
+* **Gutter Icons:** Every Kore declaration (datapacks, functions, advancements, loot tables, recipes, tags...) has an
+  icon in the editor gutter; hovering it shows the same card as the tool window. The function icon lists every
+  `function("name")` call to that function.
 * **Function references:** <kbd>Ctrl+Click</kbd> on the string of a `function("name")` command jumps to the declaration,
   including `function("namespace:name")`, `function("namespace", "name")` and names with a directory (`"utils/helper"`).
   Find Usages and Rename work from the call or from the declaration; renaming keeps namespaces and directories.
@@ -87,7 +89,7 @@ IDEA.
 
 ## Usage
 
-- **Gutter Icons:** Look for the Kore icon next to your `DataPack` object declarations and function definitions.
+- **Gutter Icons:** Look for the Kore icon next to your declarations, and hover it to see where the declaration ends up.
 
   ![Gutter icons on dataPack and function declarations](images/screenshot-kore-code.png)
 

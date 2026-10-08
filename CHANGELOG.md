@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Every declaration (advancements, loot tables, recipes, tags, `load { }`, ...) gets a gutter icon, and hovering any Kore gutter icon shows the same card as the Kore Elements tool window.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

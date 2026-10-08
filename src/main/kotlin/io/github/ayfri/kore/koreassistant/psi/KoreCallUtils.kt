@@ -21,6 +21,8 @@ import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 
+private const val KORE_PACKAGE_PREFIX = "io.github.ayfri.kore."
+private const val KORE_COMMANDS_PACKAGE_PREFIX = "io.github.ayfri.kore.commands."
 private const val DATA_PACK_BUILDER_NAME = "dataPack"
 private const val NAMESPACE_PROPERTY_NAME = "namespace"
 
@@ -32,19 +34,28 @@ private const val FILE_NAME_PARAMETER_NAME = "fileName"
  * Cheap syntactic gate: `element` is the callee identifier of a call named [shortName].
  * No resolution happens here, safe to call from dumb-mode contexts like line marker providers.
  */
-fun PsiElement.asCalleeOf(shortName: Name): KtCallExpression? {
+fun PsiElement.asCalleeOf(shortName: Name): KtCallExpression? =
+	asCallee()?.takeIf { (it.calleeExpression as KtNameReferenceExpression).getReferencedNameAsName() == shortName }
+
+/** The call whose callee identifier is [this] leaf, whatever its name. Same syntactic gate as [asCalleeOf]. */
+fun PsiElement.asCallee(): KtCallExpression? {
 	if (this !is LeafPsiElement || elementType != KtTokens.IDENTIFIER) return null
 
 	val nameReferenceExpr = parent as? KtNameReferenceExpression ?: return null
-	val callExpression = nameReferenceExpr.parent as? KtCallExpression ?: return null
-	if (callExpression.calleeExpression !== nameReferenceExpr) return null
-	if (nameReferenceExpr.getReferencedNameAsName() != shortName) return null
-
-	return callExpression
+	return (nameReferenceExpr.parent as? KtCallExpression)?.takeIf { it.calleeExpression === nameReferenceExpr }
 }
 
 /** Resolves [call] and checks it targets the function [fqName]. Must run inside `analyze { }`. */
 fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName): Boolean = resolvedOverload(call, fqName) != null
+
+/**
+ * Any callable declared under Kore's root package counts - checking ~230 exact FqNames buys nothing here - except
+ * the command builders: `Function.function("x")` is a `/function` call, not a declaration, and shares its name.
+ */
+fun KaSession.resolvesToKoreDeclaration(call: KtCallExpression): Boolean {
+	val fqName = call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol?.callableId?.asSingleFqName()?.asString() ?: return false
+	return fqName.startsWith(KORE_PACKAGE_PREFIX) && !fqName.startsWith(KORE_COMMANDS_PACKAGE_PREFIX)
+}
 
 /** The overload of [fqName] that [call] resolves to, or `null` when it targets something else. Must run inside `analyze { }`. */
 fun KaSession.resolvedOverload(call: KtCallExpression, fqName: FqName): KaFunctionSymbol? =

@@ -17,6 +17,9 @@
         <codeInsight.lineMarkerProvider
                 language="kotlin"
                 implementationClass="io.github.ayfri.kore.koreassistant.gutter.FunctionGutterProvider"/>
+        <codeInsight.lineMarkerProvider
+                language="kotlin"
+                implementationClass="io.github.ayfri.kore.koreassistant.gutter.DeclarationGutterProvider"/>
 
         <!-- Registered here rather than programmatically: the manager's builder API is override-only.
              KoreToolWindowRegistrar only flips its availability once it knows whether this is a Kore project. -->

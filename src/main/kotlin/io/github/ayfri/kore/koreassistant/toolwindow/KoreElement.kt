@@ -2,6 +2,8 @@ package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
+import io.github.ayfri.kore.koreassistant.index.KoreDeclarationData
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 
 /** Shown instead of a namespace/datapack name when the declaration sits outside any visible `dataPack { }`. */
@@ -78,5 +80,19 @@ data class KoreElement(
 	/** `File.kt:42`, the stack-trace spelling the IDE turns back into a link when pasted. */
 	val sourceLocation: String get() = if (lineNumber > 0) "$fileName:$lineNumber" else fileName
 }
+
+/** [this] declaration as written in [file], attributed to [dataPack], which also stands in for a namespace it does not spell out. */
+fun KoreDeclarationData.toKoreElement(dataPack: String, file: VirtualFile, lineNumber: Int) = KoreElement(
+	kind = kind,
+	name = name,
+	namespace = namespace ?: dataPack,
+	dataPackName = dataPack,
+	directory = directory,
+	isDynamic = isDynamic,
+	fileUrl = file.url,
+	fileName = file.name,
+	offset = offset,
+	lineNumber = lineNumber,
+)
 
 private fun String.withTrailingSlash() = if (isEmpty() || endsWith('/')) this else "$this/"

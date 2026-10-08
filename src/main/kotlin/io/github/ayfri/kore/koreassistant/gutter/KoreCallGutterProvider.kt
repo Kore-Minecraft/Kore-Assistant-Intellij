@@ -2,50 +2,69 @@ package io.github.ayfri.kore.koreassistant.gutter
 
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProviderDescriptor
-import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
-import io.github.ayfri.kore.koreassistant.psi.asCalleeOf
-import io.github.ayfri.kore.koreassistant.psi.resolvesTo
+import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
+import io.github.ayfri.kore.koreassistant.index.koreDeclarationData
+import io.github.ayfri.kore.koreassistant.inspections.KoreProjectElements
+import io.github.ayfri.kore.koreassistant.psi.ResolvingPropertyResolver
 import io.github.ayfri.kore.koreassistant.services.KoreLibraryService
+import io.github.ayfri.kore.koreassistant.toolwindow.KoreDataPackNode
+import io.github.ayfri.kore.koreassistant.toolwindow.KoreElement
+import io.github.ayfri.kore.koreassistant.toolwindow.KoreElementNode
+import io.github.ayfri.kore.koreassistant.toolwindow.UNKNOWN_DATA_PACK
+import io.github.ayfri.kore.koreassistant.toolwindow.toKoreElement
+import io.github.ayfri.kore.koreassistant.toolwindow.tooltip
+import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.analyze
-import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtCallExpression
 import javax.swing.Icon
 
 /**
- * Shared line marker logic for `dataPack(...)` and `function(...)` declarations. The syntactic gate
- * ([asCalleeOf]) and the cached Kore-project check run first so the Analysis API ([resolvesTo]) is only
- * invoked on plausible candidates in projects that actually depend on Kore.
+ * Shared line marker logic for Kore declarations. The syntactic gate ([declarationAt]) and the cached Kore-project check
+ * run first so the Analysis API ([confirms]) is only invoked on plausible candidates in projects that actually depend on Kore.
+ *
+ * The hover is the tool window's card, built when shown rather than with the marker: by then the inspections have usually
+ * refreshed the project's elements, whose datapack attribution follows `fun DataPack.xxx()` extensions. Until they have, it
+ * shows what the call itself spells, read here where resolution is allowed.
  */
-abstract class KoreCallGutterProvider(
-	private val fqName: FqName,
-	private val icon: Icon,
-	private val tooltipTitle: String,
-	private val tooltipText: String,
-) : LineMarkerProviderDescriptor() {
-	private val shortName = fqName.shortName()
-
+abstract class KoreCallGutterProvider : LineMarkerProviderDescriptor() {
 	final override fun getName() = this::class.simpleName
 
+	/** The declaration call [element] is the callee identifier of, with its kind, read without resolution. */
+	protected abstract fun declarationAt(element: PsiElement): Pair<KtCallExpression, KoreDeclarationKind>?
+
+	protected abstract fun KaSession.confirms(call: KtCallExpression): Boolean
+
 	final override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
-		val callExpression = element.asCalleeOf(shortName) ?: return null
-		if (!element.project.service<KoreLibraryService>().isKoreProject) return null
+		val (call, kind) = declarationAt(element) ?: return null
+		val project = element.project
+		if (!project.service<KoreLibraryService>().isKoreProject) return null
 
-		analyze(callExpression) {
-			if (!resolvesTo(callExpression, fqName)) return null
-		}
+		val data = analyze(call) {
+			if (!confirms(call)) return null
+			call.koreDeclarationData(kind, ResolvingPropertyResolver)
+		} ?: return null
 
-		return NavigationGutterIconBuilder.create(icon)
-			.setAlignment(GutterIconRenderer.Alignment.CENTER)
-			.setTooltipTitle(tooltipTitle)
-			.setTooltipText(tooltipText)
-			.withTargets(callExpression, element)
-			.createLineMarkerInfo(element)
+		val file = call.containingFile
+		val lineNumber = PsiDocumentManager.getInstance(project).getDocument(file)?.getLineNumber(data.offset)?.plus(1) ?: -1
+		val written = data.toKoreElement(data.dataPackName ?: UNKNOWN_DATA_PACK, file.virtualFile ?: return null, lineNumber)
+
+		return createMarker(element, call, kind.icon, "${kind.displayName} '${data.name}'") { hoverCard(project, written) }
 	}
 
-	/** Where clicking the icon goes; the declaration's own name argument unless the subclass has something better to show. */
-	protected open fun NavigationGutterIconBuilder<PsiElement>.withTargets(call: KtCallExpression, element: PsiElement) =
-		setTarget(call.valueArguments.firstOrNull()?.getArgumentExpression() ?: element)
+	protected open fun createMarker(element: PsiElement, call: KtCallExpression, icon: Icon, accessibleName: String, tooltip: () -> String): LineMarkerInfo<*> =
+		LineMarkerInfo(element, element.textRange, icon, { tooltip() }, null, GutterIconRenderer.Alignment.CENTER) { accessibleName }
+}
+
+/** A datapack answers over everything it holds, like its tool window row; any other declaration shows its own card. */
+private fun hoverCard(project: Project, written: KoreElement): String {
+	val known = project.service<KoreProjectElements>().upToDateOrNull
+	val element = known?.firstOrNull { it.fileUrl == written.fileUrl && it.offset == written.offset } ?: written
+
+	if (known == null || element.kind != KoreDeclarationKind.DATA_PACK) return KoreElementNode(element).tooltip()
+	return KoreDataPackNode(element.name, known.filter { it.dataPackName == element.name && it.kind != KoreDeclarationKind.DATA_PACK }).tooltip()
 }
