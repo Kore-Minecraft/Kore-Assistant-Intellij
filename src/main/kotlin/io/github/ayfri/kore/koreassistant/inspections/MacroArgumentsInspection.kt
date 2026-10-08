@@ -62,7 +62,8 @@ private const val MAX_SUGGESTION_DISTANCE = 2
 /**
  * A function writing `$(x)` fails at runtime when called without an `x` argument, and an argument it never reads is most likely
  * a typo of one it does. Kore only checks `function(typedFunction, nbt { })`, at generation time; calls by name and functions
- * using `macro("x")` are checked by nobody. Arguments read at runtime from storage, an entity or a block are not checked.
+ * using `macro("x")` are checked by nobody. Arguments read from a storage go through [checkStorageArguments], from an entity or a
+ * block are not checked.
  */
 class MacroArgumentsInspection : LocalInspectionTool() {
 	override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
@@ -72,20 +73,26 @@ class MacroArgumentsInspection : LocalInspectionTool() {
 			override fun visitCallExpression(expression: KtCallExpression) {
 				// No `hasFunctionBody()` gate: the typed `function(fn) { this["x"] = 1 }` call takes a trailing lambda too.
 				if (expression.calleeName() != KoreNames.FUNCTION_COMMAND.shortName().asString()) return
-				val (arguments, typed) = analyze(expression) {
+				val (arguments, typed, fromData) = analyze(expression) {
 					val call = expression.resolveToCall()?.successfulFunctionCallOrNull() ?: return
 					if (call.symbol.callableId?.asSingleFqName() != KoreNames.FUNCTION_COMMAND) return
-					if (call.symbol.valueParameters.any { it.name.asString() == PATH_PARAMETER }) return
-					// The typed overloads are the generic ones, `<reified T : Macros>`.
-					call.valueArgumentMapping.entries.associate { (argument, parameter) -> parameter.name.asString() to argument } to call.typeArgumentsMapping.isNotEmpty()
+					Triple(
+						call.valueArgumentMapping.entries.associate { (argument, parameter) -> parameter.name.asString() to argument },
+						// The typed overloads are the generic ones, `<reified T : Macros>`.
+						call.typeArgumentsMapping.isNotEmpty(),
+						// Only the `DataArgument` overloads take a path.
+						call.symbol.valueParameters.any { it.name.asString() == PATH_PARAMETER },
+					)
 				}
 				if (arguments[GROUP_PARAMETER]?.text == "true") return
 
 				val target = arguments[NAME_PARAMETER] ?: arguments[FUNCTION_PARAMETER] ?: return
 				val usage = target.targetDeclaration()?.macroUsage() ?: return
 				val passed = arguments[ARGUMENTS_PARAMETER] ?: arguments[BUILDER_PARAMETER]
-				val keys = passed.macroArguments()
 				val label = (target as? KtStringTemplateExpression)?.let(ElementManipulators::getValueText) ?: target.text
+				if (fromData) return holder.checkStorageArguments(expression, target, label, usage.used, passed ?: return, arguments[PATH_PARAMETER])
+
+				val keys = passed.macroArguments()
 
 				val missing = usage.used.filter { it !in keys.names }
 				// On the target, not the compound: the platform hides a warning nested in an error of the same inspection.
@@ -153,10 +160,10 @@ private class AddMacroArgumentsFix(private val missing: List<String>) : LocalQui
 }
 
 /** The keys a call passes, [isComplete] being `false` when some are runtime-built or the compound is not an inline `nbt { }`. */
-private class MacroArguments(val names: Map<String, KtExpression>, val isComplete: Boolean)
+internal class MacroArguments(val names: Map<String, KtExpression>, val isComplete: Boolean)
 
 /** `nbt { this["x"] = 1 }`, its builder lambda alone for the typed overload, or nothing at all. */
-private fun KtExpression?.macroArguments(): MacroArguments {
+internal fun KtExpression?.macroArguments(): MacroArguments {
 	if (this == null || this is KtConstantExpression && text == "null") return MacroArguments(emptyMap(), true)
 	val body = when (this) {
 		is KtLambdaExpression -> bodyExpression

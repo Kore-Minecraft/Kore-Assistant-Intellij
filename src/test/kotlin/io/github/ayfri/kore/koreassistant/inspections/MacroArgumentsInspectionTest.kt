@@ -54,9 +54,18 @@ private val FAKE_COMMANDS = """
 	import io.github.ayfri.kore.utils.NbtCompound
 	import io.github.ayfri.kore.utils.NbtCompoundBuilder
 
-	class DataArgument
+	open class DataArgument
+	class StorageArgument(val name: String, val namespace: String) : DataArgument()
+	class Data {
+		fun modify(path: String, value: String) = Unit
+		operator fun set(path: String, value: String) = Unit
+		fun merge(block: NbtCompoundBuilder.() -> Unit) = Unit
+	}
 
-	fun storage() = DataArgument()
+	fun storage(storage: String, namespace: String = "minecraft") = StorageArgument(storage, namespace)
+	fun storage(target: DataArgument, path: String, scale: Double = 1.0) = Unit
+	fun Function.data(target: DataArgument, block: Data.() -> Unit) = Unit
+	fun Function.data(target: DataArgument) = Data()
 	fun Function.say(message: String) = Unit
 	fun Function.function(name: String, group: Boolean = false, arguments: NbtCompound? = null) = Unit
 	fun Function.function(name: String, group: Boolean = false, arguments: DataArgument, path: String? = null) = Unit
@@ -117,7 +126,7 @@ private val MAIN_KT = """
 				function("helper_user", arguments = nbt { this["greeting"] = "hi" })
 				function("plain", arguments = nbt { this["stray"] = "b" })
 				function("dynamic", arguments = nbt { this["stray"] = "b" })
-				function("tp", arguments = storage())
+				function("tp", arguments = storage("unwritten"))
 				function("typed", arguments = nbt { this["player"] = "p" })
 				function(typed, arguments = nbt { this["player"] = "p"; this["extra"] = "b" })
 				function(typed) { this["player"] = "p" }
@@ -161,6 +170,46 @@ class MacroArgumentsInspectionTest : BasePlatformTestCase() {
 				"untyped@56 $error: Missing macro argument 'a' for function 'untyped'",
 				"typed@57 $error: Missing macro argument 'player' for function 'typed'",
 				"\"spare\"@58 $error: Function 'typed' does not use macro 'spare'",
+			),
+			problems("KoreMacroArguments"),
+		)
+	}
+
+	fun testReadsStorageWritesBeforeTheCall() {
+		myFixture.configureByText(
+			"Other.kt",
+			"""
+			import io.github.ayfri.kore.commands.data
+			import io.github.ayfri.kore.commands.function
+			import io.github.ayfri.kore.commands.storage
+			import io.github.ayfri.kore.dataPack
+			import io.github.ayfri.kore.functions.function
+			import io.github.ayfri.kore.utils.set
+
+			fun main() {
+				dataPack("pack") {
+					function("storage_caller") {
+						val args = storage("args", "pack")
+						data(args) { modify("tp.player", "p"); this["tp.x"] = "1" }
+						storage(args, "tp.y")
+						function("tp", arguments = args, path = "tp")
+						data(storage("args", "pack")).modify("other.player", "p")
+						function("tp", arguments = storage("args", "pack"), path = "other")
+						function("tp", arguments = storage("empty", "pack"), path = "tp")
+						data(args)["whole"] = "{}"
+						function("tp", arguments = args, path = "whole")
+						data(args) { merge { this["player"] = "p" } }
+						function("tp", arguments = args)
+					}
+				}
+			}
+			""".trimIndent()
+		)
+		val warning = HighlightSeverity.WARNING.name
+		assertEquals(
+			setOf(
+				"\"tp\"@16 $warning: Macro arguments 'x', 'y' of function 'tp' are never written to storage 'pack:args' at 'other' before this call",
+				"\"tp\"@21 $warning: Macro arguments 'x', 'y' of function 'tp' are never written to storage 'pack:args' before this call",
 			),
 			problems("KoreMacroArguments"),
 		)

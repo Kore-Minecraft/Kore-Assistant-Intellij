@@ -8,8 +8,9 @@ adds every missing one as <code>this["x"] = ""</code>. An unused one is most lik
 closest missing macro.
 </p>
 <p>
-Arguments are checked when written inline, <code>nbt { this["x"] = ... }</code>. Arguments read at runtime from a storage,
-an entity or a block are not checked.
+Arguments are checked when written inline, <code>nbt { this["x"] = ... }</code>. Arguments read from a storage
+(<code>arguments = storage("args", "ns"), path = "x"</code>) are checked against what the calling function writes to that
+storage path before the call, only when it writes there at all. Arguments read from an entity or a block are not checked.
 </p>
 </body>
 </html>
