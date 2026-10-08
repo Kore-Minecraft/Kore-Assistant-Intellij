@@ -1,0 +1,15 @@
+<html>
+<body>
+Reports calls to a function using macros that miss one of its arguments, and arguments the function never uses.
+<p>
+The macros a function uses are read from <code>macro("x")</code>, <code>eval("x")</code>, <code>$(x)</code> in a string and
+<code>macros.x</code>, including the project helpers its body calls. A missing argument makes the call fail in-game, and a quick-fix
+adds every missing one as <code>this["x"] = ""</code>. An unused one is most likely a typo, and the quick-fix renames it to the
+closest missing macro.
+</p>
+<p>
+Arguments are checked when written inline, <code>nbt { this["x"] = ... }</code>. Arguments read at runtime from a storage,
+an entity or a block are not checked.
+</p>
+</body>
+</html>

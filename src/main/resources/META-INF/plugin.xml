@@ -158,6 +158,15 @@
                 enabledByDefault="true"
                 level="ERROR"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.MacroNameInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreMacroArguments"
+                displayName="Missing or unused macro arguments"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.MacroArgumentsInspection"/>
     </extensions>
 
     <actions>
