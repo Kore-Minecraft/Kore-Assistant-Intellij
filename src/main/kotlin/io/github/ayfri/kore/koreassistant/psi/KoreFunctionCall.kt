@@ -19,13 +19,22 @@ private const val BLOCK_PARAMETER = "block"
 /**
  * What a `/function` command (`function("x")`, `function("ns", "x")`, `function("ns:x")`) targets, read from its name literal.
  * [namespace] is `null` when only resolution could tell (a `fun DataPack.xxx()` layout, a constant from another file).
- * [pathRange] is the `x` part inside the literal, after any `ns:` prefix.
+ * [pathRange] is the `x` part inside the literal, after any `ns:` prefix. [namespaceArgument] means the `(namespace, name)` overload,
+ * whose literal can only name a path of that namespace.
  */
-data class KoreFunctionCommand(val literal: KtStringTemplateExpression, val namespace: String?, val path: String, val group: Boolean, val pathRange: TextRange) {
+data class KoreFunctionCommand(
+	val literal: KtStringTemplateExpression,
+	val namespace: String?,
+	val path: String,
+	val group: Boolean,
+	val pathRange: TextRange,
+	val namespaceArgument: Boolean,
+) {
 	/** The last `/` segment, which is the declared name: `utils/helper` is `function("helper", directory = "utils")`. */
 	val name get() = path.substringAfterLast('/')
 
-	val location get() = "${if (group) "#" else ""}${namespace ?: "?"}:$path"
+	/** The literal holds its own `ns:` prefix. */
+	val spellsNamespace get() = pathRange.startOffset > ElementManipulators.getValueTextRange(literal).startOffset
 }
 
 /**
@@ -70,7 +79,7 @@ fun KtStringTemplateExpression.asFunctionCommandName(): KoreFunctionCommand? {
 
 	val path = value.substring(separator + 1)
 	val pathStart = valueRange.startOffset + separator + 1
-	return KoreFunctionCommand(this, namespace, path, group, TextRange(pathStart, pathStart + path.length))
+	return KoreFunctionCommand(this, namespace, path, group, TextRange(pathStart, pathStart + path.length), namespaceFirst)
 }
 
 /** The kind of the function or function tag [this] literal names, when it is the name argument of such a declaration. */

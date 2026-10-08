@@ -59,10 +59,14 @@ class KoreStringCompletionContributor : CompletionContributor() {
 		val wanted = if (command.group) setOf(KoreDeclarationKind.FUNCTION_TAG) else KoreDeclarationKind.entries.filter { it.isFunction }.toSet()
 		val declarations = KoreDeclarationIndex.findAll(GlobalSearchScope.projectScope(project)).values.flatten()
 
-		declarations.filter { it.kind in wanted && !it.isDynamic }.map { data ->
+		declarations.filter { it.kind in wanted && !it.isDynamic }.mapNotNull { data ->
 			val namespace = data.effectiveNamespace
-			// Another namespace only resolves spelled out: the name-only overload targets the current datapack.
-			val lookup = if (namespace == null || namespace == command.namespace) data.path else "$namespace:${data.path}"
+			// Another namespace only resolves spelled out: the name-only overload targets the current datapack, the other one its argument.
+			val lookup = when {
+				namespace == null || namespace == command.namespace && !command.spellsNamespace -> data.path
+				command.namespaceArgument -> return@mapNotNull null
+				else -> "$namespace:${data.path}"
+			}
 			LookupElementBuilder.create(lookup).withIcon(data.kind.icon).withTypeText(namespace)
 		}.distinctBy { it.lookupString }.forEach(::addElement)
 	}

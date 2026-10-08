@@ -18,6 +18,7 @@
 - Recipes given a namespace argument, such as `smelting("x", "ns")`, are listed under that namespace.
 - An advancement's `tick("x")` trigger is no longer listed as a tick function.
 - The unresolved function quick-fixes keep a typed `ns:` prefix, create the missing function in the namespace the call names, and no longer add a namespace argument to an already namespaced name.
+- Function name completion keeps a typed `ns:` prefix, and `function("ns", "...")` only offers that namespace's functions.
 
 ### Maintenance
 

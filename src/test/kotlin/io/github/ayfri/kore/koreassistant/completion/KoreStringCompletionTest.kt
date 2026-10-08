@@ -114,6 +114,11 @@ class KoreStringCompletionTest : BasePlatformTestCase() {
 
 	fun testFiltersOnTheWholeTypedValue() = assertEquals(listOf("utils/helper_two"), lookups("function(\"utils/<caret>\")"))
 
+	fun testKeepsATypedNamespaceInEveryLookup() =
+		assertEquals(listOf("pack:caller", "pack:helper", "pack:utils/helper_two"), lookups("function(\"pack:<caret>\")"))
+
+	fun testOffersOnlyTheNamespaceArgumentsFunctions() = assertEquals(listOf("elsewhere"), lookups("function(\"other\", \"<caret>\")"))
+
 	fun testCompletesTagsForAGroupCall() = assertEquals(listOf("group"), lookups("function(\"<caret>\", true)"))
 
 	fun testCompletesItemIds() = assertEquals(listOf("diamond", "diamond_sword"), lookups("item(\"dia<caret>\")"))
