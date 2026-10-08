@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
 ### Added
 
 - Every declaration (advancements, loot tables, recipes, tags, `load { }`, ...) gets a gutter icon, and hovering any Kore gutter icon shows the same card as the Kore Elements tool window.
@@ -163,7 +165,8 @@
 - Gutter icon provider for Kore functions.
 - "Kore Elements" tool window to browse Kore components in the project.
 
-[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.5...v0.1.0
 [0.0.5]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/Kore-Minecraft/Kore-Assistant-Intellij/compare/v0.0.3...v0.0.4
