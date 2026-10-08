@@ -2,7 +2,6 @@ package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runReadActionBlocking
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 import javax.swing.tree.DefaultMutableTreeNode
@@ -72,7 +71,7 @@ class KoreElementFinderTest : BasePlatformTestCase() {
 		return ApplicationManager.getApplication()
 			.executeOnPooledThread<List<KoreElement>> {
 				runReadActionBlocking {
-					KoreElementFinder.collect(project, GlobalSearchScope.allScope(project))
+					KoreElementFinder.collect(project)
 				}
 			}
 			.get()

@@ -2,7 +2,6 @@ package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VfsUtilCore
-import com.intellij.openapi.vfs.VirtualFile
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationData
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 
@@ -81,16 +80,16 @@ data class KoreElement(
 	val sourceLocation: String get() = if (lineNumber > 0) "$fileName:$lineNumber" else fileName
 }
 
-/** [this] declaration as written in [file], attributed to [dataPack], which also stands in for a namespace it does not spell out. */
-fun KoreDeclarationData.toKoreElement(dataPack: String, file: VirtualFile, lineNumber: Int) = KoreElement(
+/** [this] declaration as written in [fileUrl], attributed to [dataPack], which also stands in for a namespace it does not spell out. */
+fun KoreDeclarationData.toKoreElement(dataPack: String, fileUrl: String, fileName: String, lineNumber: Int) = KoreElement(
 	kind = kind,
 	name = name,
 	namespace = namespace ?: dataPack,
 	dataPackName = dataPack,
 	directory = directory,
 	isDynamic = isDynamic,
-	fileUrl = file.url,
-	fileName = file.name,
+	fileUrl = fileUrl,
+	fileName = fileName,
 	offset = offset,
 	lineNumber = lineNumber,
 )

@@ -50,8 +50,9 @@ abstract class KoreCallGutterProvider : LineMarkerProviderDescriptor() {
 		} ?: return null
 
 		val file = call.containingFile
+		val virtualFile = file.virtualFile ?: return null
 		val lineNumber = PsiDocumentManager.getInstance(project).getDocument(file)?.getLineNumber(data.offset)?.plus(1) ?: -1
-		val written = data.toKoreElement(data.dataPackName ?: UNKNOWN_DATA_PACK, file.virtualFile ?: return null, lineNumber)
+		val written = data.toKoreElement(data.dataPackName ?: UNKNOWN_DATA_PACK, virtualFile.url, virtualFile.name, lineNumber)
 
 		return createMarker(element, call, kind.icon, "${kind.displayName} '${data.name}'") { hoverCard(project, written) }
 	}

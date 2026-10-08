@@ -1,5 +1,6 @@
 package io.github.ayfri.kore.koreassistant.index
 
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.*
@@ -83,6 +84,10 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 		val exact = candidates.filter { namespace != null && it.second.effectiveNamespace == namespace }
 		return exact.ifEmpty { candidates.filter { namespace == null || it.second.effectiveNamespace == null } }
 	}
+
+	/** The declarations indexed in [file] alone. */
+	fun inFile(file: VirtualFile, project: Project): List<KoreDeclarationData> =
+		FileBasedIndex.getInstance().getFileData(NAME, file, project).values.flatten()
 
 	/** Every declaration indexed in [scope], grouped by the file it was found in. */
 	fun findAll(scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {

@@ -6,6 +6,10 @@
 
 - Every declaration (advancements, loot tables, recipes, tags, `load { }`, ...) gets a gutter icon, and hovering any Kore gutter icon shows the same card as the Kore Elements tool window.
 
+### Changed
+
+- After an edit, the Kore Elements tool window, inspections and inlay hints only re-analyze the edited file instead of the whole project, several times faster on large projects.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

@@ -17,7 +17,6 @@ import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiTreeChangeAdapter
 import com.intellij.psi.PsiTreeChangeEvent
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.DoubleClickListener
@@ -28,6 +27,7 @@ import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.tree.TreeUtil
+import io.github.ayfri.kore.koreassistant.inspections.koreElements
 import io.github.ayfri.kore.koreassistant.services.KoreScopeService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -159,7 +159,8 @@ class KoreToolWindowContent(private val project: Project) : Disposable {
 			// smartReadAction waits out indexing and restarts on a pending write action, so no dumb-mode retry loop is needed.
 			val found = try {
 				withBackgroundProgress(project, "Finding Kore Elements") {
-					smartReadAction(project) { KoreElementFinder.collect(project, GlobalSearchScope.projectScope(project)) }
+					// The cache the inspections fill too, so an edit costs one collection, not one per consumer.
+					smartReadAction(project) { project.koreElements() }
 				}
 			} catch (e: CancellationException) {
 				throw e

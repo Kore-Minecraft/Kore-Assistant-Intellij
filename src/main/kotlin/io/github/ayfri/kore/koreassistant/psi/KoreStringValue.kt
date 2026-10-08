@@ -1,6 +1,7 @@
 package io.github.ayfri.kore.koreassistant.psi
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -123,4 +124,12 @@ class LocalPropertyResolver(file: KtFile) : KorePropertyResolver {
 data object ResolvingPropertyResolver : KorePropertyResolver {
 	override fun initializerOf(reference: KtSimpleNameExpression) =
 		(reference.mainReference.resolve() as? KtProperty)?.initializer
+}
+
+/** [ResolvingPropertyResolver] remembering the files it read a property from, so a cache built on its answers can depend on them. */
+class TrackingPropertyResolver : KorePropertyResolver {
+	val files = HashSet<PsiFile>()
+
+	override fun initializerOf(reference: KtSimpleNameExpression) =
+		(reference.mainReference.resolve() as? KtProperty)?.also { files += it.containingFile }?.initializer
 }

@@ -1,24 +1,27 @@
 package io.github.ayfri.kore.koreassistant.toolwindow
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiTreeUtil
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationData
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationIndex
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 import io.github.ayfri.kore.koreassistant.index.koreDeclarationData
-import io.github.ayfri.kore.koreassistant.psi.ResolvingPropertyResolver
+import io.github.ayfri.kore.koreassistant.psi.TrackingPropertyResolver
 import io.github.ayfri.kore.koreassistant.psi.calleeName
 import io.github.ayfri.kore.koreassistant.psi.koreCallAt
 import io.github.ayfri.kore.koreassistant.psi.resolvesToKoreDeclaration
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
+import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.platform.modification.createProjectWideSourceModificationTracker
 import org.jetbrains.kotlin.idea.stubindex.KotlinFunctionShortNameIndex
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtExpression
@@ -33,19 +36,22 @@ private val LOGGER = Logger.getInstance(KoreElementFinder::class.java)
 /**
  * Turns [KoreDeclarationIndex] hits into [KoreElement]s. The index is syntactic, so every candidate is
  * confirmed here with `analyze { }` - one session per file rather than one per call.
+ *
+ * Both costly parts are cached per file, so an edit only redoes the file it touched: the confirmed declarations of a
+ * file, and the datapack-taking functions each body calls. They depend on their own file and on Kotlin's out-of-block
+ * modifications (a declaration added, a signature changed anywhere), never on in-body edits elsewhere.
  */
 @OptIn(KaIdeApi::class)
 internal data object KoreElementFinder {
 	/** Must run inside a smart-mode read action on a background thread; the caller owns the threading so tests can supply their own. */
-	fun collect(project: Project, scope: GlobalSearchScope): List<KoreElement> {
+	fun collect(project: Project): List<KoreElement> {
 		val psiManager = PsiManager.getInstance(project)
-		val confirmed = KoreDeclarationIndex.findAll(scope).flatMap { (file, declarations) ->
+		val confirmed = KoreDeclarationIndex.findAll(GlobalSearchScope.projectScope(project)).keys.flatMap { file ->
 			ProgressManager.checkCanceled()
-			val ktFile = psiManager.findFile(file) as? KtFile ?: return@flatMap emptyList()
-			confirmKoreDeclarations(ktFile, file, declarations)
+			(psiManager.findFile(file) as? KtFile)?.confirmedDeclarations().orEmpty()
 		}
 
-		val owners = resolveExtensionOwners(project, scope, confirmed)
+		val owners = resolveExtensionOwners(confirmed)
 		val soleDataPack = confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }
 			.map { it.data.name }
 			.distinct()
@@ -54,23 +60,30 @@ internal data object KoreElementFinder {
 		return confirmed.map { it.toElement(owners, soleDataPack) }
 	}
 
-	private fun confirmKoreDeclarations(
-		ktFile: KtFile,
-		file: VirtualFile,
-		declarations: List<KoreDeclarationData>,
-	): List<ConfirmedDeclaration> {
+	@OptIn(KaPlatformInterface::class)
+	private fun KtFile.confirmedDeclarations(): List<ConfirmedDeclaration> = CachedValuesManager.getCachedValue(this) {
+		// Constants read from other files are dependencies too: an in-body edit there is not an out-of-block one.
+		val resolver = TrackingPropertyResolver()
+		CachedValueProvider.Result(
+			confirmKoreDeclarations(resolver),
+			this, project.createProjectWideSourceModificationTracker(), *resolver.files.toTypedArray(),
+		)
+	}
+
+	private fun KtFile.confirmKoreDeclarations(resolver: TrackingPropertyResolver): List<ConfirmedDeclaration> {
+		val file = virtualFile ?: return emptyList()
 		val confirmed = mutableListOf<ConfirmedDeclaration>()
-		val document = FileDocumentManager.getInstance().getDocument(file)
+		val document = PsiDocumentManager.getInstance(project).getDocument(this)
 
 		try {
-			analyze(ktFile) {
-				for (declaration in declarations) {
-					val call = ktFile.koreCallAt(declaration.offset, declaration.kind.builderName) ?: continue
+			analyze(this) {
+				for (declaration in KoreDeclarationIndex.inFile(file, project)) {
+					val call = koreCallAt(declaration.offset, declaration.kind.builderName) ?: continue
 					if (!resolvesToKoreDeclaration(call)) continue
 					// Re-read the call now that references resolve: the indexer could not follow a constant out of its file.
-					val data = call.koreDeclarationData(declaration.kind, ResolvingPropertyResolver) ?: continue
+					val data = call.koreDeclarationData(declaration.kind, resolver) ?: continue
 					val lineNumber = document?.takeIf { data.offset <= it.textLength }?.getLineNumber(data.offset)?.plus(1) ?: -1
-					confirmed += ConfirmedDeclaration(data, file, lineNumber, call)
+					confirmed += ConfirmedDeclaration(data, file.url, file.name, lineNumber, call)
 				}
 			}
 		} catch (e: ProcessCanceledException) {
@@ -88,11 +101,7 @@ internal data object KoreElementFinder {
 	 * calls (transitively) recovers the owner; anything still unattached falls back to the project's only
 	 * datapack, if there is exactly one.
 	 */
-	private fun resolveExtensionOwners(
-		project: Project,
-		scope: GlobalSearchScope,
-		confirmed: List<ConfirmedDeclaration>,
-	): Map<KtNamedFunction, String> {
+	private fun resolveExtensionOwners(confirmed: List<ConfirmedDeclaration>): Map<KtNamedFunction, String> {
 		// The inline style attaches everything syntactically, so it never pays for the walk below.
 		if (confirmed.none { it.data.dataPackName == null }) return emptyMap()
 
@@ -101,7 +110,7 @@ internal data object KoreElementFinder {
 		for (root in confirmed.filter { it.data.kind == KoreDeclarationKind.DATA_PACK }) {
 			ProgressManager.checkCanceled()
 			val body = root.call.lambdaArguments.lastOrNull()?.getLambdaExpression()?.bodyExpression ?: continue
-			for (extension in reachableDataPackExtensions(project, scope, body)) {
+			for (extension in reachableDataPackExtensions(body)) {
 				owners.putIfAbsent(extension, root.data.name)
 			}
 		}
@@ -109,38 +118,43 @@ internal data object KoreElementFinder {
 		return owners
 	}
 
-	private fun reachableDataPackExtensions(project: Project, scope: GlobalSearchScope, root: KtExpression): Set<KtNamedFunction> {
+	private fun reachableDataPackExtensions(root: KtExpression): Set<KtNamedFunction> {
 		val visited = LinkedHashSet<KtNamedFunction>()
-		// A datapack body repeats the same callees (`function`, `say`, ...) hundreds of times; each name is looked up once.
-		val queriedNames = HashSet<String>()
 		val frontier = ArrayDeque(listOf(root))
 
 		while (frontier.isNotEmpty()) {
 			ProgressManager.checkCanceled()
-			for (call in PsiTreeUtil.findChildrenOfType(frontier.removeFirst(), KtCallExpression::class.java)) {
-				val calleeName = call.calleeName()?.takeIf(queriedNames::add) ?: continue
-				for (candidate in KotlinFunctionShortNameIndex[calleeName, project, scope]) {
-					if (!candidate.isDataPackExtension() || !visited.add(candidate)) continue
-					candidate.bodyExpression?.let(frontier::addLast)
-				}
+			for (candidate in frontier.removeFirst().calledDataPackFunctions()) {
+				if (visited.add(candidate)) candidate.bodyExpression?.let(frontier::addLast)
 			}
 		}
 
 		return visited
+	}
+
+	/** The project functions taking a `DataPack` that [this] body may call, matched by callee name. */
+	@OptIn(KaPlatformInterface::class)
+	private fun KtExpression.calledDataPackFunctions(): List<KtNamedFunction> = CachedValuesManager.getCachedValue(this) {
+		// A datapack body repeats the same callees (`function`, `say`, ...) hundreds of times; each name is looked up once.
+		val names = PsiTreeUtil.findChildrenOfType(this, KtCallExpression::class.java).mapNotNullTo(HashSet()) { it.calleeName() }
+		val scope = GlobalSearchScope.projectScope(project)
+		val candidates = names.flatMap { KotlinFunctionShortNameIndex[it, project, scope] }.filter { it.isDataPackExtension() }
+		CachedValueProvider.Result(candidates, containingFile, project.createProjectWideSourceModificationTracker())
 	}
 }
 
 /** A declaration that resolved into Kore, still holding the PSI the datapack-owner walk needs. */
 private class ConfirmedDeclaration(
 	val data: KoreDeclarationData,
-	private val file: VirtualFile,
+	private val fileUrl: String,
+	private val fileName: String,
 	private val lineNumber: Int,
 	val call: KtCallExpression,
 ) {
 	fun toElement(owners: Map<KtNamedFunction, String>, soleDataPack: String?): KoreElement {
-		// The outermost named function around the declaration is the unit `reachableDataPackExtensions` matches on.
+		// The outermost named function around the declaration is the unit the owner walk matches on.
 		val container = PsiTreeUtil.getTopmostParentOfType(call, KtNamedFunction::class.java)
-		return data.toKoreElement(data.dataPackName ?: owners[container] ?: soleDataPack ?: UNKNOWN_DATA_PACK, file, lineNumber)
+		return data.toKoreElement(data.dataPackName ?: owners[container] ?: soleDataPack ?: UNKNOWN_DATA_PACK, fileUrl, fileName, lineNumber)
 	}
 }
 
