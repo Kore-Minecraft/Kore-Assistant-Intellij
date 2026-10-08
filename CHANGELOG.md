@@ -15,6 +15,10 @@
 
 - A `DataPack` extension reachable from several datapacks is attributed to the one calling it most directly, instead of an arbitrary one.
 
+### Maintenance
+
+- Added an opt-in benchmark measuring element collection and highlighting on a Kore checkout.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added
