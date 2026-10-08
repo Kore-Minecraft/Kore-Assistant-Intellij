@@ -135,7 +135,7 @@ class MacroArgumentsInspectionTest : BasePlatformTestCase() {
 
 	override fun setUp() {
 		super.setUp()
-		myFixture.enableInspections(MacroArgumentsInspection::class.java)
+		myFixture.enableInspections(MacroArgumentsInspection::class.java, UnusedMacroInspection::class.java)
 		myFixture.addFileToProject("kore.kt", FAKE_KORE)
 		myFixture.addFileToProject("functions.kt", FAKE_FUNCTIONS)
 		myFixture.addFileToProject("utils.kt", FAKE_UTILS)
@@ -163,6 +163,13 @@ class MacroArgumentsInspectionTest : BasePlatformTestCase() {
 				"\"spare\"@58 $error: Function 'typed' does not use macro 'spare'",
 			),
 			problems("KoreMacroArguments"),
+		)
+	}
+
+	fun testReportsUnusedTypedMacros() {
+		assertEquals(
+			setOf("::TeleportMacros@38 ${HighlightSeverity.WARNING.name}: Macro 'spare' never used by this function"),
+			problems("KoreUnusedMacro"),
 		)
 	}
 

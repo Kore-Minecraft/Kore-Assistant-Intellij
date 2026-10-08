@@ -5,7 +5,7 @@
 ### Added
 
 - Every declaration (advancements, loot tables, recipes, tags, `load { }`, ...) gets a gutter icon, and hovering any Kore gutter icon shows the same card as the Kore Elements tool window.
-- Inspections for function calls missing a macro argument or passing one the function never uses (with fixes adding the missing ones or renaming a typo).
+- Inspections for function calls missing a macro argument or passing one the function never uses (with fixes adding the missing ones or renaming a typo), and for `Macros` class macros a function never uses.
 - The Kore Elements right-click Copy menu offers the namespace, path, tag id without `#`, Kotlin call, output path with its datapack folder and resource folder, plus every namespace and command under a grouping row.
 
 ### Changed

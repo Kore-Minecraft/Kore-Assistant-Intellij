@@ -167,6 +167,15 @@
                 enabledByDefault="true"
                 level="ERROR"
                 implementationClass="io.github.ayfri.kore.koreassistant.inspections.MacroArgumentsInspection"/>
+        <localInspection
+                language="kotlin"
+                shortName="KoreUnusedMacro"
+                displayName="Unused macro"
+                groupPath="Kotlin"
+                groupName="Kore"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.ayfri.kore.koreassistant.inspections.UnusedMacroInspection"/>
     </extensions>
 
     <actions>
