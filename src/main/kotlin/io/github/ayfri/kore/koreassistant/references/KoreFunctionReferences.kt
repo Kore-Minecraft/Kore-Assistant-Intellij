@@ -71,8 +71,6 @@ class KoreFunctionReference(val command: KoreFunctionCommand) :
 		return ElementManipulators.handleContentChange(element, TextRange(nameStart, command.pathRange.endOffset), newElementName)
 	}
 
-	override fun getVariants(): Array<Any> = emptyArray()
-
 	private object Resolver : ResolveCache.PolyVariantResolver<KoreFunctionReference> {
 		override fun resolve(reference: KoreFunctionReference, incompleteCode: Boolean): Array<ResolveResult> {
 			val project = reference.element.project

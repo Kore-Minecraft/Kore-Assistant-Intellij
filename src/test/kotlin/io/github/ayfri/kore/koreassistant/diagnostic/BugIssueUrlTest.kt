@@ -1,6 +1,6 @@
 package io.github.ayfri.kore.koreassistant.diagnostic
 
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import junit.framework.TestCase
 import java.net.URI
 import java.net.URLDecoder
 
@@ -10,7 +10,7 @@ private fun String.queryParams() = URI(this).rawQuery.split('&').associate {
 }
 
 /** The prefilled issue URL: field ids, title from the first trace line, and a trace cut to fit the URL limit. */
-class BugIssueUrlTest : BasePlatformTestCase() {
+class BugIssueUrlTest : TestCase() {
 	fun testPrefillsTheBugFormFields() {
 		val trace = "java.lang.IllegalStateException: boom\n\tat a.b.C.d(C.kt:1)"
 		val params = bugIssueUrl(trace, "0.0.6", "IntelliJ IDEA 2026.2", "It broke & stayed broken").queryParams()

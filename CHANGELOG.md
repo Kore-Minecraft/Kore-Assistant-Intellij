@@ -25,6 +25,7 @@
 ### Maintenance
 
 - Added an opt-in benchmark measuring element collection and highlighting on a Kore checkout.
+- Removed unused code and redundant tests.
 
 ## [0.1.0] - 2026-10-07
 
