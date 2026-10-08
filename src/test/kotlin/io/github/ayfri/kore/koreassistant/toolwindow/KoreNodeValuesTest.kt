@@ -8,11 +8,12 @@ private fun element(
 	name: String,
 	namespace: String = "ns",
 	directory: String? = null,
+	dataPackName: String = "my_pack",
 ) = KoreElement(
 	kind = kind,
 	name = name,
 	namespace = namespace,
-	dataPackName = "my_pack",
+	dataPackName = dataPackName,
 	directory = directory,
 	isDynamic = false,
 	fileUrl = "file:///project/src/Main.kt",
@@ -82,6 +83,62 @@ class KoreNodeValuesTest : BasePlatformTestCase() {
 		assertEquals("/function ns:utils/foo", copied["Command"])
 		assertEquals("data/ns/function/utils/foo.mcfunction", copied["Output Path"])
 		assertEquals("Main.kt:7", copied["Source Location"])
+		assertEquals("ns", copied["Namespace"])
+		assertEquals("foo", copied["Name"])
+		assertEquals("utils/foo", copied["Path"])
+		assertEquals("function(\"ns:utils/foo\")", copied["Kotlin Call"])
+		assertEquals("my_pack/data/ns/function/utils/foo.mcfunction", copied["Output Path with Datapack"])
+		assertEquals("function", copied["Resource Folder"])
+	}
+
+	fun testDropsEntriesCopyingTheSameStringAsAnEarlierOne() {
+		val copied = KoreElementNode(element(KoreDeclarationKind.FUNCTION, "foo")).copied()
+
+		assertEquals("foo", copied["Name"])
+		assertNull("a path equal to the name repeats it", copied["Path"])
+		assertNull("an id equal to the resource location repeats it", copied["Namespaced ID"])
+
+		listOf(
+			KoreElementNode(element(KoreDeclarationKind.FUNCTION_TAG, "hooks")),
+			KoreNamespaceNode("ns", "my_pack", listOf(element(KoreDeclarationKind.ADVANCEMENT, "bar"))),
+		).forEach { node ->
+			val values = node.copyValues().map(KoreCopyValue::value)
+			assertEquals("$node offers the same value twice", values.distinct(), values)
+		}
+	}
+
+	fun testSpellsATagWithAndWithoutItsHash() {
+		val copied = KoreElementNode(element(KoreDeclarationKind.FUNCTION_TAG, "hooks")).copied()
+
+		assertEquals("#ns:hooks", copied["Resource Location"])
+		assertEquals("ns:hooks", copied["Namespaced ID"])
+		assertEquals("function(\"ns:hooks\", group = true)", copied["Kotlin Call"])
+		assertEquals("tags/function", copied["Resource Folder"])
+	}
+
+	fun testCopiesTheBuilderCallDeclaringOtherKinds() {
+		val copied = KoreElementNode(element(KoreDeclarationKind.LOOT_TABLE, "chest")).copied()
+
+		assertEquals("lootTable(\"chest\")", copied["Kotlin Declaration"])
+		assertNull(copied["Kotlin Call"])
+	}
+
+	fun testGivesADataPackRowNoIdButItsDeclaration() {
+		val copied = KoreElementNode(element(KoreDeclarationKind.DATA_PACK, "my_pack")).copied()
+
+		assertNull(copied["Resource Location"])
+		assertNull(copied["Namespace"])
+		assertNull(copied["Resource Folder"])
+		assertNull("pack.mcmeta already sits in the datapack folder", copied["Output Path with Datapack"])
+		assertEquals("dataPack(\"my_pack\")", copied["Kotlin Declaration"])
+		assertEquals("my_pack/pack.mcmeta", copied["Output Path"])
+	}
+
+	fun testSkipsTheDatapackFolderWhenTheDatapackIsUnknown() {
+		val orphan = element(KoreDeclarationKind.ADVANCEMENT, "bar", dataPackName = UNKNOWN_DATA_PACK)
+
+		assertNull(KoreElementNode(orphan).copied()["Output Path with Datapack"])
+		assertNull(KoreDataPackNode(UNKNOWN_DATA_PACK, listOf(orphan)).copied()["Datapack Name"])
 	}
 
 	fun testCopiesEveryResourceLocationUnderAGroupingRow() {
@@ -92,8 +149,28 @@ class KoreNodeValuesTest : BasePlatformTestCase() {
 		val copied = KoreDataPackNode("my_pack", children).copied()
 
 		assertEquals("my_pack", copied["Datapack Name"])
+		assertEquals("ns", copied["Namespace"])
 		assertEquals("ns:foo\nns:bar", copied["Resource Locations (2)"])
+		assertEquals("/function ns:foo\n/advancement grant @s only ns:bar", copied["Commands (2)"])
 		assertEquals("data/ns/function/foo.mcfunction\ndata/ns/advancement/bar.json", copied["Output Paths (2)"])
+	}
+
+	fun testListsDistinctNamespacesAndPreviewsASingleValue() {
+		val children = listOf(
+			element(KoreDeclarationKind.FUNCTION, "foo"),
+			element(KoreDeclarationKind.FUNCTION, "foo", namespace = "other"),
+			element(KoreDeclarationKind.FUNCTION, "bar", namespace = "other"),
+		)
+		val fileValues = KoreFileNode("Main.kt", children).copyValues()
+
+		assertEquals("ns\nother", fileValues.single { it.title == "Namespaces (2)" }.value)
+		assertFalse(fileValues.single { it.title == "Resource Locations (3)" }.previewed)
+
+		val single = KoreFolderNode("advancement", "ns", listOf(element(KoreDeclarationKind.ADVANCEMENT, "bar"))).copyValues()
+		val location = single.single { it.title == "Resource Location" }
+
+		assertEquals("ns:bar", location.value)
+		assertTrue(location.previewed)
 	}
 
 	fun testGivesGroupingRowsTheOutputFolderTheirSubtreeSharesResourceLocations() {

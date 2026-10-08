@@ -17,6 +17,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
+import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 import io.github.ayfri.kore.koreassistant.psi.koreCallAt
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
@@ -40,18 +41,14 @@ fun createKoreNodePopupGroup(navigate: () -> Unit): DefaultActionGroup = Default
 	add(CopyKoreValuesAction())
 }
 
-/** What a row puts on the clipboard, in menu order. Grouping rows answer over their whole subtree. */
-fun KoreTreeNode.copyValues(): List<KoreCopyValue> = when (this) {
-	is KoreElementNode -> buildList {
-		element.resourceLocation?.let { add(KoreCopyValue("Resource Location", it)) }
-		element.command?.let { add(KoreCopyValue("Command", it)) }
-		add(KoreCopyValue("Output Path", element.outputPath))
-		add(KoreCopyValue("Name", element.name))
-		add(KoreCopyValue("Source Location", element.sourceLocation))
-		add(KoreCopyValue("Absolute File Path", element.presentablePath))
-	}
+/** What a row puts on the clipboard, in menu order, skipping repeats: a function without directory has the same name and path. */
+fun KoreTreeNode.copyValues(): List<KoreCopyValue> = rowValues().filter { it.value.isNotEmpty() }.distinctBy(KoreCopyValue::value)
 
-	is KoreDataPackNode -> listOf(KoreCopyValue("Datapack Name", label)) + subtreeValues()
+private fun KoreTreeNode.rowValues(): List<KoreCopyValue> = when (this) {
+	is KoreElementNode -> element.copyValues()
+
+	is KoreDataPackNode -> listOfNotNull(label.takeIf { it != UNKNOWN_DATA_PACK }?.let { KoreCopyValue("Datapack Name", it) }) +
+		subtreeValues()
 
 	is KoreNamespaceNode -> listOf(
 		KoreCopyValue("Namespace", label),
@@ -69,21 +66,52 @@ fun KoreTreeNode.copyValues(): List<KoreCopyValue> = when (this) {
 	) + subtreeValues()
 }
 
-/** The bulk entries: one line per element underneath, counted in the title. */
-private fun KoreTreeNode.subtreeValues(): List<KoreCopyValue> {
-	val locations = elements.mapNotNull(KoreElement::resourceLocation)
+private fun KoreElement.copyValues(): List<KoreCopyValue> {
+	val location = resourceLocation
+	val dataPackOutputPath = when {
+		kind == KoreDeclarationKind.DATA_PACK || dataPackName == UNKNOWN_DATA_PACK -> null
+		else -> "$dataPackName/$outputPath"
+	}
 
-	return buildList {
-		if (locations.isNotEmpty()) {
-			add(KoreCopyValue("Resource Locations (${locations.size})", locations.joinToString("\n"), previewed = false))
-		}
-		add(
-			KoreCopyValue(
-				"Output Paths (${elements.size})",
-				elements.joinToString("\n", transform = KoreElement::outputPath),
-				previewed = false,
-			)
-		)
+	return listOf(
+		"Resource Location" to location,
+		"Namespaced ID" to location?.removePrefix("#"),
+		"Namespace" to namespace.takeIf { location != null },
+		"Name" to name,
+		"Path" to location?.substringAfter(':'),
+		"Command" to command,
+		kotlinSnippet(),
+		"Output Path" to outputPath,
+		"Output Path with Datapack" to dataPackOutputPath,
+		"Resource Folder" to kind.resourceFolder,
+		"Source Location" to sourceLocation,
+		"Absolute File Path" to presentablePath,
+	).mapNotNull { (title, value) -> value?.let { KoreCopyValue(title, it) } }
+}
+
+/** The `function("ns:x")` command calling a function or function tag, else the builder call declaring the element. */
+private fun KoreElement.kotlinSnippet(): Pair<String, String?> = when {
+	kind.isFunction -> "Kotlin Call" to "function(\"$resourceLocation\")"
+	kind == KoreDeclarationKind.FUNCTION_TAG -> "Kotlin Call" to "function(\"${resourceLocation?.removePrefix("#")}\", group = true)"
+	else -> "Kotlin Declaration" to "${kind.builderName}(\"$name\")"
+}
+
+/** The bulk entries over every element underneath, deduplicated. */
+private fun KoreTreeNode.subtreeValues(): List<KoreCopyValue> = listOfNotNull(
+	aggregate("Namespace", "Namespaces", elements.filter { it.resourceLocation != null }.map(KoreElement::namespace)),
+	aggregate("Resource Location", "Resource Locations", elements.mapNotNull(KoreElement::resourceLocation)),
+	aggregate("Command", "Commands", elements.mapNotNull(KoreElement::command)),
+	aggregate("Output Path", "Output Paths", elements.map(KoreElement::outputPath)),
+)
+
+/** One line per distinct value, counted in the title; a single value reads like a leaf's entry and keeps its preview. */
+private fun aggregate(singular: String, plural: String, values: List<String>): KoreCopyValue? {
+	val distinct = values.distinct()
+
+	return when (distinct.size) {
+		0 -> null
+		1 -> KoreCopyValue(singular, distinct.single())
+		else -> KoreCopyValue("$plural (${distinct.size})", distinct.joinToString("\n"), previewed = false)
 	}
 }
 
@@ -113,7 +141,7 @@ private class JumpToSourceAction(private val navigate: () -> Unit) :
  * entry. Entries are built here, since which ones make sense depends on the row the menu was opened on.
  */
 private class CopyKoreValuesAction :
-	AnAction("Copy", "Copy this row's names and paths", AllIcons.Actions.Copy), DumbAware {
+	AnAction("Copy", "Copy this row's ids, paths and Kotlin snippets", AllIcons.Actions.Copy), DumbAware {
 	override fun actionPerformed(e: AnActionEvent) {
 		val node = e.getData(KORE_NODE_KEY) ?: return
 		val group = DefaultActionGroup(node.copyValues().map(::CopyKoreValueAction))

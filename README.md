@@ -53,7 +53,8 @@ IDEA.
   dialogs, worldgen, and more) as a tree mirroring the generated datapack layout, groupable by output structure, source
   file or flat list, and sortable by name, kind, namespace or declaration order. Filter and speed search narrow the tree
   down; hovering a row shows a documentation-style card with its resource location, generated path, command and source;
-  right-clicking offers Copy, Jump to Source and Find Usages.
+  right-clicking offers Jump to Source, Find Usages and a Copy menu previewing each value (resource location, namespace,
+  path, command, Kotlin call, output path, source location, or all of them for a whole datapack, namespace or folder).
 * **Inspections:** a `function("name")` command whose target is declared nowhere in the project is an error, with
   quick-fixes to pick the closest name, call it under the namespace it actually lives in, swap `(name, namespace)`
   arguments passed in the wrong order, or create the function. Two declarations writing the same file in one datapack
