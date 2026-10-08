@@ -73,14 +73,17 @@ class UnresolvedFunctionReferenceInspection : LocalInspectionTool() {
 				if (targets.any { it.namespace == reference.namespace && it.isDynamic && !it.name.endsWith(HASHED_NAME_SUFFIX) }) return
 				if (elements.none { it.namespace == reference.namespace || it.dataPackName == reference.namespace }) return
 
+				val spellsNamespace = namespaceFirst || reference.prefix.isNotEmpty()
 				val fixes = buildList {
 					sameKind.filter { it.namespace == reference.namespace }
 						.map { it.path }
 						.filter { editDistance(it, reference.name) <= MAX_SUGGESTION_DISTANCE }
 						.distinct()
-						.mapTo(this, ::ChangeNameFix)
-					if (!namespaceFirst) sameKind.filter { it.path == reference.name }.map { it.namespace }.distinct().mapTo(this, ::AddNamespaceFix)
-					if (!reference.group && expression.enclosingDeclaration()?.parent is KtBlockExpression) add(CreateFunctionFix(reference.name))
+						.mapTo(this) { ChangeNameFix(reference.prefix + it) }
+					if (!spellsNamespace) sameKind.filter { it.path == reference.name }.map { it.namespace }.distinct().mapTo(this, ::AddNamespaceFix)
+					if (!reference.group && expression.enclosingDeclaration()?.parent is KtBlockExpression) {
+						add(CreateFunctionFix(reference.name, reference.namespace.takeIf { spellsNamespace }))
+					}
 				}
 
 				holder.registerProblem(reference.nameExpression, message, *fixes.toTypedArray())
@@ -89,7 +92,8 @@ class UnresolvedFunctionReferenceInspection : LocalInspectionTool() {
 	}
 }
 
-private class FunctionReference(val nameExpression: KtExpression, val namespace: String, val name: String, val group: Boolean) {
+/** [prefix] is the `ns:` a namespaced name spells, which a suggested name keeps. */
+private class FunctionReference(val nameExpression: KtExpression, val namespace: String, val name: String, val group: Boolean, val prefix: String = "") {
 	val location get() = "${if (group) "#" else ""}$namespace:$name"
 }
 
@@ -100,7 +104,10 @@ private fun KtCallExpression.functionReference(namespaceFirst: Boolean): Functio
 	val group = (namedArgument(GROUP_PARAMETER) ?: positionalArgument(if (namespaceFirst) 2 else 1))?.text == "true"
 
 	// The name-only overload keeps an already namespaced name as is (`functionId` in Kore's `commands/Function.kt`).
-	if (!namespaceFirst && ':' in name.text) return FunctionReference(nameExpression, name.text.substringBefore(':').removePrefix("#"), name.text.substringAfter(':'), group)
+	if (!namespaceFirst && ':' in name.text) {
+		val prefix = name.text.substringBefore(':')
+		return FunctionReference(nameExpression, prefix.removePrefix("#"), name.text.substringAfter(':'), group, "$prefix:")
+	}
 
 	val namespace = if (namespaceFirst) {
 		(namedArgument(NAMESPACE_PARAMETER) ?: positionalArgument(0))?.koreStringValue(ResolvingPropertyResolver)?.takeUnless { it.isDynamic }?.text
@@ -169,15 +176,21 @@ private object SwapArgumentsFix : LocalQuickFix {
 	}
 }
 
-/** Inserts an empty `function("name") { }` right after the declaration holding the call, directory split out of the name. */
-private class CreateFunctionFix(private val name: String) : LocalQuickFix {
+/**
+ * Inserts an empty `function("name") { }` right after the declaration holding the call, directory split out of the name, and
+ * [namespace] passed when the call spells one, since the new declaration would otherwise land in the datapack's.
+ */
+private class CreateFunctionFix(private val name: String, private val namespace: String?) : LocalQuickFix {
 	override fun getFamilyName() = "Create function '$name'"
 
 	override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
 		val declaration = (descriptor.psiElement as? KtExpression)?.parentOfType<KtCallExpression>()?.enclosingDeclaration() ?: return
 		val block = declaration.parent as? KtBlockExpression ?: return
-		val directory = name.substringBeforeLast('/', "")
-		val arguments = if (directory.isEmpty()) "\"$name\"" else "\"${name.substringAfterLast('/')}\", directory = \"$directory\""
+		val arguments = listOfNotNull(
+			"\"${name.substringAfterLast('/')}\"",
+			namespace?.let { "$NAMESPACE_PARAMETER = \"$it\"" },
+			name.substringBeforeLast('/', "").takeIf(String::isNotEmpty)?.let { "directory = \"$it\"" },
+		).joinToString()
 		val factory = KtPsiFactory(project)
 		val created = block.addAfter(factory.createExpression("function($arguments) {\n}"), declaration)
 		block.addBefore(factory.createNewLine(2), created)

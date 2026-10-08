@@ -115,7 +115,22 @@ class UnresolvedFunctionReferenceInspectionTest : BasePlatformTestCase() {
 
 	fun testSuggestsTheNamespaceTheFunctionLivesIn() = checkFix("function(\"in_other\")", "Call 'other:…' instead", "function(\"other\", \"in_other\")")
 
+	fun testKeepsTheNamespaceOfANamespacedNameWhenSuggesting() = checkFix("function(\"other:in_othr\")", "Change to 'other:in_other'", "function(\"other:in_other\")")
+
+	fun testDoesNotAddANamespaceArgumentToANamespacedName() {
+		myFixture.configureByText("Main.kt", "$HEADER\t\tfunction(\"caller\") {\n\t\t\tfunction(<caret>\"other:helper\")\n\t\t}\n\t}\n}\n")
+		val fixes = myFixture.availableIntentions.map { it.text }
+		assertTrue(fixes.toString(), "Create function 'helper'" in fixes)
+		assertFalse(fixes.toString(), fixes.any { it.startsWith("Call ") })
+	}
+
 	fun testSwapsMisorderedArguments() = checkFix("function(\"in_other\", \"other\")", "Swap the namespace and name arguments", "function(\"other\", \"in_other\")")
+
+	fun testCreatesAMissingFunctionInTheNamespaceTheCallSpells() {
+		myFixture.configureByText("Main.kt", "$HEADER\t\tfunction(\"caller\") {\n\t\t\tfunction(<caret>\"other:missing\")\n\t\t}\n\t}\n}\n")
+		myFixture.launchAction(myFixture.findSingleIntention("Create function 'missing'"))
+		assertTrue(myFixture.file.text, myFixture.file.text.contains("function(\"missing\", namespace = \"other\") {"))
+	}
 
 	fun testCreatesTheMissingFunctionAfterTheCaller() {
 		myFixture.configureByText("Main.kt", "$HEADER\t\tfunction(\"caller\") {\n\t\t\tfunction(<caret>\"utils/missing\")\n\t\t}\n\t}\n}\n")
