@@ -14,6 +14,9 @@
 ### Fixed
 
 - A `DataPack` extension reachable from several datapacks is attributed to the one calling it most directly, instead of an arbitrary one.
+- `load { }` and `tick { }` without a name are listed in the Kore Elements tool window, and `generatedFunction`, `load` and `tick` show their real `generated_scopes/` output path.
+- Recipes given a namespace argument, such as `smelting("x", "ns")`, are listed under that namespace.
+- An advancement's `tick("x")` trigger is no longer listed as a tick function.
 
 ### Maintenance
 

@@ -79,7 +79,7 @@ internal data object KoreElementFinder {
 			analyze(this) {
 				for (declaration in KoreDeclarationIndex.inFile(file, project)) {
 					val call = koreCallAt(declaration.offset, declaration.kind.builderName) ?: continue
-					if (!resolvesToKoreDeclaration(call)) continue
+					if (!resolvesToKoreDeclaration(call, declaration.kind)) continue
 					// Re-read the call now that references resolve: the indexer could not follow a constant out of its file.
 					val data = call.koreDeclarationData(declaration.kind, resolver) ?: continue
 					val lineNumber = document?.takeIf { data.offset <= it.textLength }?.getLineNumber(data.offset)?.plus(1) ?: -1

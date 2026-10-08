@@ -55,14 +55,14 @@ data object KoreDeclarationIndex : FileBasedIndexExtension<String, List<KoreDecl
 	override fun getValueExternalizer() = KoreDeclarationDataExternalizer
 
 	// Bump on ANY change to the indexer logic, KoreDeclarationKind, or KoreDeclarationDataExternalizer.
-	override fun getVersion() = 6
+	override fun getVersion() = 7
 
 	override fun getInputFilter() = DefaultFileTypeSpecificInputFilter(KotlinFileType.INSTANCE)
 
 	override fun dependsOnFileContent() = true
 
 	/** The declarations indexed under [name] in [scope], grouped by file. */
-	fun find(name: String, scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {
+	private fun find(name: String, scope: GlobalSearchScope): Map<VirtualFile, List<KoreDeclarationData>> {
 		val result = HashMap<VirtualFile, MutableList<KoreDeclarationData>>()
 		FileBasedIndex.getInstance().processValues(NAME, name, null, { file, declarations ->
 			result.getOrPut(file, ::mutableListOf) += declarations

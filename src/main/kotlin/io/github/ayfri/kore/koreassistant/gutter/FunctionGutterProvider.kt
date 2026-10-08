@@ -11,6 +11,7 @@ import io.github.ayfri.kore.koreassistant.KoreNames
 import io.github.ayfri.kore.koreassistant.index.KoreDeclarationKind
 import io.github.ayfri.kore.koreassistant.psi.asCalleeOf
 import io.github.ayfri.kore.koreassistant.psi.declarationNameArgument
+import io.github.ayfri.kore.koreassistant.psi.hasFunctionBody
 import io.github.ayfri.kore.koreassistant.psi.resolvesTo
 import io.github.ayfri.kore.koreassistant.references.KoreFunctionTarget
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -18,9 +19,11 @@ import org.jetbrains.kotlin.psi.KtCallExpression
 import javax.swing.Icon
 
 class FunctionGutterProvider : KoreCallGutterProvider() {
-	override fun declarationAt(element: PsiElement) = element.asCalleeOf(KoreNames.FUNCTION.shortName())?.let { it to KoreDeclarationKind.FUNCTION }
+	/** A body-less `function("x")` is the command, so it never reaches `analyze { }`: datapacks hold hundreds of them. */
+	override fun declarationAt(element: PsiElement) =
+		element.asCalleeOf(KoreNames.FUNCTION.shortName())?.takeIf(KtCallExpression::hasFunctionBody)?.let { it to KoreDeclarationKind.FUNCTION }
 
-	override fun KaSession.confirms(call: KtCallExpression) = resolvesTo(call, KoreNames.FUNCTION)
+	override fun KaSession.confirms(call: KtCallExpression, kind: KoreDeclarationKind) = resolvesTo(call, KoreNames.FUNCTION)
 
 	/** Clicking lists the `function("x")` calls targeting this declaration, searched only once the icon is clicked. */
 	override fun createMarker(element: PsiElement, call: KtCallExpression, icon: Icon, accessibleName: String, tooltip: () -> String): LineMarkerInfo<*> {

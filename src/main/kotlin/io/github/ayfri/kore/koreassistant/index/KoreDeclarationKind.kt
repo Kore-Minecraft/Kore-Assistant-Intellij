@@ -290,8 +290,19 @@ enum class KoreDeclarationKind(val builderName: String, val resourceFolder: Stri
 	/** The function family writes `.mcfunction` under an extra `<directory>` instead of `<folder>/<name>.json`. */
 	val isFunction get() = resourceFolder == FUNCTION_RESOURCE_FOLDER
 
-	/** Tags are referenced as `#namespace:name` and take their namespace as a second positional parameter, like functions. */
+	/** `generatedFunction`, `load` and `tick` write under Kore's `Configuration.generatedFunctionsFolder`. */
+	val isGeneratedFunction get() = this == GENERATED_FUNCTION || this == LOAD || this == TICK
+
+	/** Tags are referenced as `#namespace:name`. */
 	val isTag get() = resourceFolder?.startsWith(TAGS_RESOURCE_FOLDER_PREFIX) == true
+
+	/** Where the builder takes its namespace positionally: `function(name, namespace)`, `blockTag(fileName, namespace)`, `smelting(name, namespace)`. */
+	val namespaceParameterIndex: Int?
+		get() = when {
+			this == CRAFTING_SPECIAL -> 2
+			isFunction || isTag || scope == KoreScope.RECIPES -> 1
+			else -> null
+		}
 
 	/** `CRAFTING_SHAPED` -> `Crafting Shaped`, for the tooltip and the sort-by-kind grouping. */
 	val displayName = name.split('_').joinToString(" ") { word -> word.lowercase().replaceFirstChar(Char::titlecase) }

@@ -10,6 +10,7 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.util.parentOfType
 import com.intellij.psi.util.parents
 import io.github.ayfri.kore.koreassistant.KoreNames
+import io.github.ayfri.kore.koreassistant.index.HASHED_NAME_SUFFIX
 import io.github.ayfri.kore.koreassistant.psi.ResolvingPropertyResolver
 import io.github.ayfri.kore.koreassistant.psi.calleeName
 import io.github.ayfri.kore.koreassistant.psi.koreDeclarationKind
@@ -68,7 +69,8 @@ class UnresolvedFunctionReferenceInspection : LocalInspectionTool() {
 					holder.registerProblem(reference.nameExpression, message, SwapArgumentsFix)
 					return
 				}
-				if (targets.any { it.namespace == reference.namespace && it.isDynamic }) return
+				// A hashed `load { }` name is runtime-built too, but no call can spell it.
+				if (targets.any { it.namespace == reference.namespace && it.isDynamic && !it.name.endsWith(HASHED_NAME_SUFFIX) }) return
 				if (elements.none { it.namespace == reference.namespace || it.dataPackName == reference.namespace }) return
 
 				val fixes = buildList {

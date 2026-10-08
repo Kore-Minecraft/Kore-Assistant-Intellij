@@ -30,6 +30,7 @@ private val FAKE_FUNCTIONS = """
 	class Function
 
 	fun DataPack.function(name: String, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
+	fun DataPack.load(name: String? = null, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 """.trimIndent()
 
 private val FAKE_COMMANDS = """
@@ -53,12 +54,14 @@ private val MAIN_KT = """
 	import io.github.ayfri.kore.commands.function
 	import io.github.ayfri.kore.dataPack
 	import io.github.ayfri.kore.functions.function
+	import io.github.ayfri.kore.functions.load
 	import io.github.ayfri.kore.lootTable
 
 	fun main() {
 		dataPack("pack") {
 			function("helper") { function("other") }
 			lootTable("chest") { }
+			load { }
 			extras()
 		}
 	}
@@ -83,8 +86,8 @@ class KoreGutterProviderTest : BasePlatformTestCase() {
 	fun testMarksEveryDeclarationButNotCommands() {
 		myFixture.configureByText("Main.kt", MAIN_KT)
 		val kore = setOf(KoreIcons.KORE, KoreIcons.FUNCTION, AllIcons.FileTypes.Json)
-		val marked = myFixture.findAllGutters().filter { it.icon in kore }.map { myFixture.file.text.substring(offsetOf(it)).substringBefore('(') }
-		assertEquals(listOf("dataPack", "function", "lootTable"), marked.sorted())
+		val marked = myFixture.findAllGutters().filter { it.icon in kore }.map { myFixture.file.text.substring(offsetOf(it)).takeWhile(Char::isLetter) }
+		assertEquals(listOf("dataPack", "function", "load", "lootTable"), marked.sorted())
 	}
 
 	fun testHoverShowsTheDeclarationCard() {

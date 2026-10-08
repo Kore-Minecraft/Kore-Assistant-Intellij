@@ -22,6 +22,7 @@ private val FAKE_KORE = """
 	fun dataPack(name: String, block: DataPack.() -> Unit) = DataPack().apply(block)
 	fun DataPack.function(name: String, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 	fun DataPack.advancement(name: String, block: DataPack.() -> Unit) = Unit
+	fun DataPack.load(name: String? = null, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 """.trimIndent()
 
 private val FAKE_FUNCTIONS = """
@@ -39,11 +40,27 @@ private val FAKE_COMMANDS = """
 	fun Function.function(name: String) = Unit
 """.trimIndent()
 
+/** Kore builders sharing a name with the function family without declaring a function: an advancement trigger and a LanternLoad block. */
+private val FAKE_NAMESAKES = """
+	package io.github.ayfri.kore.features.advancements.triggers
+
+	class AdvancementCriteria
+	class LanternLoad {
+		fun load(block: () -> Unit) = Unit
+	}
+
+	fun AdvancementCriteria.tick(name: String, block: () -> Unit = {}) = Unit
+""".trimIndent()
+
 private val MAIN_KT = """
 	import io.github.ayfri.kore.advancement
 	import io.github.ayfri.kore.commands.function
 	import io.github.ayfri.kore.dataPack
 	import io.github.ayfri.kore.function
+	import io.github.ayfri.kore.load
+	import io.github.ayfri.kore.features.advancements.triggers.AdvancementCriteria
+	import io.github.ayfri.kore.features.advancements.triggers.LanternLoad
+	import io.github.ayfri.kore.features.advancements.triggers.tick
 
 	// Same name as a real Kore builder, but resolves elsewhere - must not show up.
 	fun advancement(name: String, block: () -> Unit) = Unit
@@ -54,32 +71,40 @@ private val MAIN_KT = """
 				function("called_not_declared")
 			}
 			advancement("root") { }
+			load { }
 		}
 
 		advancement("impostor") { }
+		AdvancementCriteria().tick("criterion") { }
+		LanternLoad().load { }
 	}
 """.trimIndent()
 
 class KoreElementFinderTest : BasePlatformTestCase() {
-	private fun find(): Map<String, KoreElement> {
+	private fun collect(): List<KoreElement> {
 		myFixture.addFileToProject("kore.kt", FAKE_KORE)
 		myFixture.addFileToProject("functions.kt", FAKE_FUNCTIONS)
 		myFixture.addFileToProject("commands.kt", FAKE_COMMANDS)
+		myFixture.addFileToProject("namesakes.kt", FAKE_NAMESAKES)
 		myFixture.configureByText("main.kt", MAIN_KT)
 
 		// The Analysis API refuses to resolve on the EDT, where platform tests run, so mirror what production does.
 		return ApplicationManager.getApplication()
-			.executeOnPooledThread<List<KoreElement>> {
-				runReadActionBlocking {
-					KoreElementFinder.collect(project)
-				}
-			}
+			.executeOnPooledThread<List<KoreElement>> { runReadActionBlocking { KoreElementFinder.collect(project) } }
 			.get()
-			.associateBy(KoreElement::name)
 	}
 
-	fun testKeepsOnlyDeclarationsResolvingIntoKoreNotCommands() {
-		assertEquals(setOf("mypack", "helper", "root"), find().keys)
+	private fun find() = collect().associateBy(KoreElement::name)
+
+	fun testKeepsOnlyDeclarationsResolvingIntoKoreNotCommandsOrNamesakes() {
+		assertEquals(listOf("helper", "load_<hash>", "mypack", "root"), collect().map(KoreElement::name).sorted())
+	}
+
+	fun testListsAnUnnamedLoadUnderItsHashedGeneratedName() {
+		val load = find().getValue("load_<hash>")
+
+		assertTrue(load.isDynamic)
+		assertEquals("data/mypack/function/generated_scopes/load_<hash>.mcfunction", load.outputPath)
 	}
 
 	fun testInheritsTheNamespaceFromTheEnclosingDataPack() {

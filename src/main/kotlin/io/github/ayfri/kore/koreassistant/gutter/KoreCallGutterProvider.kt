@@ -37,7 +37,7 @@ abstract class KoreCallGutterProvider : LineMarkerProviderDescriptor() {
 	/** The declaration call [element] is the callee identifier of, with its kind, read without resolution. */
 	protected abstract fun declarationAt(element: PsiElement): Pair<KtCallExpression, KoreDeclarationKind>?
 
-	protected abstract fun KaSession.confirms(call: KtCallExpression): Boolean
+	protected abstract fun KaSession.confirms(call: KtCallExpression, kind: KoreDeclarationKind): Boolean
 
 	final override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
 		val (call, kind) = declarationAt(element) ?: return null
@@ -45,7 +45,7 @@ abstract class KoreCallGutterProvider : LineMarkerProviderDescriptor() {
 		if (!project.service<KoreLibraryService>().isKoreProject) return null
 
 		val data = analyze(call) {
-			if (!confirms(call)) return null
+			if (!confirms(call, kind)) return null
 			call.koreDeclarationData(kind, ResolvingPropertyResolver)
 		} ?: return null
 

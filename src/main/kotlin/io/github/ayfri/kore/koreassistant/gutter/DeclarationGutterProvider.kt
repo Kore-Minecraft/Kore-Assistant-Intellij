@@ -19,5 +19,5 @@ class DeclarationGutterProvider : KoreCallGutterProvider() {
 		return call to kind
 	}
 
-	override fun KaSession.confirms(call: KtCallExpression) = resolvesToKoreDeclaration(call)
+	override fun KaSession.confirms(call: KtCallExpression, kind: KoreDeclarationKind) = resolvesToKoreDeclaration(call, kind)
 }

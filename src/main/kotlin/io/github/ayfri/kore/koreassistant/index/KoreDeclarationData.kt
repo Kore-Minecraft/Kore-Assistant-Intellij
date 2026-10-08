@@ -16,10 +16,13 @@ import java.io.DataOutput
 
 private const val NAMESPACE_PARAMETER_NAME = "namespace"
 private const val DIRECTORY_PARAMETER_NAME = "directory"
-
-// `function(name, namespace, directory) { }` and `blockTag(fileName, namespace) { }` pass them as parameters rather than in the block.
-private const val NAMESPACE_PARAMETER_INDEX = 1
 private const val DIRECTORY_PARAMETER_INDEX = 2
+
+/** Kore's default `Configuration.generatedFunctionsFolder`; a datapack configuring another one is not followed. */
+private const val GENERATED_FUNCTIONS_FOLDER = "generated_scopes"
+
+/** Stands for the hash Kore names an unnamed `load { }` / `tick { }` after, which only its body decides. */
+const val HASHED_NAME_SUFFIX = "_<hash>"
 
 /**
  * Indexed value for one Kore declaration call: what kind it is, its declared name, where it is, and the
@@ -51,19 +54,25 @@ data class KoreDeclarationData(
 /**
  * Reads everything the plugin knows about a declaration call. [resolver] decides how far constants are
  * followed: the indexer may only look inside the file being indexed, the tool window resolves across files.
- * `null` when the call has no name argument at all, i.e. it is not a declaration after all.
+ * `null` when the call has no name argument at all, i.e. it is not a declaration after all - except `load { }` and `tick { }`.
  */
 fun KtCallExpression.koreDeclarationData(kind: KoreDeclarationKind, resolver: KorePropertyResolver): KoreDeclarationData? {
-	val nameArgument = declarationNameArgument() ?: return null
+	val nameArgument = declarationNameArgument()
 	// Even a name the plugin cannot compute (`lootTable(idOf(leaf))`) is worth listing as its own source text.
-	val name = nameArgument.koreStringValue(resolver) ?: nameArgument.koreStringPlaceholder()
+	val name = nameArgument?.let { it.koreStringValue(resolver) ?: it.koreStringPlaceholder() }
+		?: KoreStringValue("${kind.builderName}$HASHED_NAME_SUFFIX", true).takeIf { kind == KoreDeclarationKind.LOAD || kind == KoreDeclarationKind.TICK }
+		?: return null
 
 	val namespace = namedArgument(NAMESPACE_PARAMETER_NAME)?.koreStringValue(resolver)
-		?: (if (kind.isFunction || kind.isTag) positionalArgument(NAMESPACE_PARAMETER_INDEX)?.koreStringValue(resolver) else null)
+		?: kind.namespaceParameterIndex?.let(::positionalArgument)?.koreStringValue(resolver)
 		?: namespaceAssignmentInBlock(resolver)
 
-	val directory = if (!kind.isFunction) null else namedArgument(DIRECTORY_PARAMETER_NAME)?.koreStringValue(resolver)
+	val declaredDirectory = if (!kind.isFunction) null else namedArgument(DIRECTORY_PARAMETER_NAME)?.koreStringValue(resolver)
 		?: positionalArgument(DIRECTORY_PARAMETER_INDEX)?.koreStringValue(resolver)
+	val directory = if (!kind.isGeneratedFunction) declaredDirectory else KoreStringValue(
+		listOfNotNull(GENERATED_FUNCTIONS_FOLDER, declaredDirectory?.text?.takeIf(String::isNotEmpty)).joinToString("/"),
+		declaredDirectory?.isDynamic == true,
+	)
 
 	// A `dataPack("x") { }` is its own datapack; everything else inherits the enclosing one, if visible.
 	val dataPack = if (kind == KoreDeclarationKind.DATA_PACK) name else enclosingDataPackName(resolver)

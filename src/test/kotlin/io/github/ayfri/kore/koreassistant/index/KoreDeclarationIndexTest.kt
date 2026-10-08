@@ -14,7 +14,13 @@ private val MAIN_KT = """
 				smelting("browndye_smelt") {
 					experience = 0.1
 				}
+				blasting("namespaced_blast", "recipe_ns") { }
+				craftingSpecial("special", CraftingSpecial.ARMOR_DYE, "special_ns")
 			}
+
+			load { }
+			tick("ticker", directory = "loop") { }
+			generatedFunction("gen") { }
 
 			function("helper", namespace = "other", directory = "utils") { }
 			function("positional", "ns2", "dir2") { }
@@ -71,6 +77,11 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 			setOf(
 				"rotten-flesh-to-leather",
 				"browndye_smelt",
+				"namespaced_blast",
+				"special",
+				"load_<hash>",
+				"ticker",
+				"gen",
 				"helper",
 				"positional",
 				"reordered",
@@ -116,6 +127,27 @@ class KoreDeclarationIndexTest : BasePlatformTestCase() {
 
 		assertEquals("ns2", positional.namespace)
 		assertEquals("dir2", positional.directory)
+	}
+
+	/** Recipes take their namespace second, except `craftingSpecial(name, type, namespace)`. */
+	fun testReadsTheRecipesPositionalNamespace() {
+		val indexed = index()
+
+		assertEquals("recipe_ns", indexed.getValue("namespaced_blast").namespace)
+		assertEquals("special_ns", indexed.getValue("special").namespace)
+	}
+
+	/** Kore writes them under its generated functions folder, and names an unnamed `load { }` / `tick { }` after a hash of its body. */
+	fun testPutsGeneratedFunctionsInTheGeneratedScopesFolder() {
+		val indexed = index()
+		val load = indexed.getValue("load_<hash>")
+
+		assertEquals(KoreDeclarationKind.LOAD, load.kind)
+		assertTrue("A hash of the body is only known at runtime", load.isDynamic)
+		assertEquals("generated_scopes/load_<hash>", load.path)
+		assertEquals("generated_scopes/loop/ticker", indexed.getValue("ticker").path)
+		assertFalse(indexed.getValue("ticker").isDynamic)
+		assertEquals("generated_scopes/gen", indexed.getValue("gen").path)
 	}
 
 	fun testReadsNamespaceAssignedInTheBuilderBlock() {

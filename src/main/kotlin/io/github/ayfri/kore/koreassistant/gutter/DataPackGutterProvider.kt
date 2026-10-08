@@ -11,5 +11,5 @@ import org.jetbrains.kotlin.psi.KtCallExpression
 class DataPackGutterProvider : KoreCallGutterProvider() {
 	override fun declarationAt(element: PsiElement) = element.asCalleeOf(KoreNames.DATA_PACK.shortName())?.let { it to KoreDeclarationKind.DATA_PACK }
 
-	override fun KaSession.confirms(call: KtCallExpression) = resolvesTo(call, KoreNames.DATA_PACK)
+	override fun KaSession.confirms(call: KtCallExpression, kind: KoreDeclarationKind) = resolvesTo(call, KoreNames.DATA_PACK)
 }

@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
 import org.jetbrains.kotlin.analysis.api.resolution.symbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaFunctionSymbol
+import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
@@ -24,6 +25,7 @@ import org.jetbrains.kotlin.psi.KtQualifiedExpression
 private const val KORE_PACKAGE_PREFIX = "io.github.ayfri.kore."
 private const val KORE_COMMANDS_PACKAGE_PREFIX = "io.github.ayfri.kore.commands."
 private const val DATA_PACK_BUILDER_NAME = "dataPack"
+private const val DATA_PACK_CLASS_NAME = "DataPack"
 private const val NAMESPACE_PROPERTY_NAME = "namespace"
 
 // The function family names its first parameter `name`, every other generator builder calls it `fileName`.
@@ -51,10 +53,14 @@ fun KaSession.resolvesTo(call: KtCallExpression, fqName: FqName): Boolean = reso
 /**
  * Any callable declared under Kore's root package counts - checking ~230 exact FqNames buys nothing here - except
  * the command builders: `Function.function("x")` is a `/function` call, not a declaration, and shares its name.
+ * The function family must also extend `DataPack`, since `tick` and `load` name an advancement trigger, an enchantment
+ * effect and a LanternLoad block too.
  */
-fun KaSession.resolvesToKoreDeclaration(call: KtCallExpression): Boolean {
-	val fqName = call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol?.callableId?.asSingleFqName()?.asString() ?: return false
-	return fqName.startsWith(KORE_PACKAGE_PREFIX) && !fqName.startsWith(KORE_COMMANDS_PACKAGE_PREFIX)
+fun KaSession.resolvesToKoreDeclaration(call: KtCallExpression, kind: KoreDeclarationKind): Boolean {
+	val symbol = call.resolveToCall()?.successfulFunctionCallOrNull()?.symbol ?: return false
+	val fqName = symbol.callableId?.asSingleFqName()?.asString() ?: return false
+	if (!fqName.startsWith(KORE_PACKAGE_PREFIX) || fqName.startsWith(KORE_COMMANDS_PACKAGE_PREFIX)) return false
+	return !kind.isFunction || (symbol.receiverParameter?.returnType as? KaClassType)?.classId?.shortClassName?.asString() == DATA_PACK_CLASS_NAME
 }
 
 /** The overload of [fqName] that [call] resolves to, or `null` when it targets something else. Must run inside `analyze { }`. */

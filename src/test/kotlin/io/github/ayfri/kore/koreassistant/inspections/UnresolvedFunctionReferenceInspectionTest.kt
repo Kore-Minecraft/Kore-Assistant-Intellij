@@ -16,6 +16,7 @@ private val FAKE_KORE = """
 	fun dataPack(name: String, block: DataPack.() -> Unit) = DataPack().apply(block)
 	fun DataPack.function(name: String, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 	fun DataPack.functionTag(fileName: String, namespace: String = "", block: () -> Unit) = Unit
+	fun DataPack.load(name: String? = null, namespace: String = "", directory: String = "", block: Function.() -> Unit) = Unit
 	fun <T> T.apply(block: T.() -> Unit): T = this
 """.trimIndent()
 
@@ -40,6 +41,7 @@ import io.github.ayfri.kore.commands.function
 import io.github.ayfri.kore.dataPack
 import io.github.ayfri.kore.function
 import io.github.ayfri.kore.functionTag
+import io.github.ayfri.kore.load
 
 fun main() {
 	dataPack("pack") {
@@ -47,6 +49,7 @@ fun main() {
 		function("in_other", namespace = "other") { }
 		function("nested", directory = "utils") { }
 		functionTag("group") { }
+		load { }
 """
 
 private val MAIN_KT = HEADER + """
@@ -87,10 +90,10 @@ class UnresolvedFunctionReferenceInspectionTest : BasePlatformTestCase() {
 	fun testReportsOnlyCallsWithNoDeclaredTarget() {
 		assertEquals(
 			setOf(
-				"\"helpr\"@15" to "Function 'pack:helpr' is not declared in this project",
-				"\"in_other\"@16" to "Function 'pack:in_other' is not declared in this project",
-				"\"other\"@18" to "Function 'in_other:other' is not declared in this project",
-				"\"group\"@21" to "Function 'pack:group' is not declared in this project",
+				"\"helpr\"@17" to "Function 'pack:helpr' is not declared in this project",
+				"\"in_other\"@18" to "Function 'pack:in_other' is not declared in this project",
+				"\"other\"@20" to "Function 'in_other:other' is not declared in this project",
+				"\"group\"@23" to "Function 'pack:group' is not declared in this project",
 			),
 			errors(),
 		)
